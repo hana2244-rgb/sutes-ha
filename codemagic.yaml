@@ -35,7 +35,12 @@ workflows:
 
       # Codemagic の Mac で毎回 prebuild して ios/ を生成（リポジトリに ios/ がなくてもビルド可能）
       - name: Prebuild iOS
-        script: npx expo prebuild --platform ios --no-install
+        script: |
+          set -e
+          npx expo prebuild --platform ios --no-install
+          echo "Contents of ios/ after prebuild:"
+          ls -la ios/ || true
+          find ios -maxdepth 1 -name "*.xcworkspace" -type d || true
 
       - name: Install CocoaPods
         script: cd ios && pod install
@@ -46,9 +51,17 @@ workflows:
       - name: Build IPA
         script: |
           cd "$CM_BUILD_DIR"
+          WORKSPACE_PATH=$(find ios -maxdepth 1 -name "*.xcworkspace" -type d | head -1)
+          if [ -z "$WORKSPACE_PATH" ]; then
+            echo "Error: No .xcworkspace found in ios/. Listing ios/:"
+            ls -la ios/
+            exit 1
+          fi
+          SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
+          echo "Using workspace: $WORKSPACE_PATH, scheme: $SCHEME_NAME"
           xcode-project build-ipa \
-            --workspace "ios/$XCODE_WORKSPACE" \
-            --scheme "$XCODE_SCHEME"
+            --workspace "$WORKSPACE_PATH" \
+            --scheme "$SCHEME_NAME"
 
     artifacts:
       - build/ios/ipa/*.ipa
