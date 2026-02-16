@@ -33,15 +33,9 @@ workflows:
       - name: Install npm dependencies
         script: npm ci
 
-      # リポジトリに ios/ がない場合（別ブランチなど）は prebuild で生成
-      - name: Prebuild iOS if needed
-        script: |
-          if [ ! -d ios ] || [ ! -d "ios/$XCODE_WORKSPACE" ]; then
-            echo "ios/ or workspace not found, running expo prebuild..."
-            npx expo prebuild --platform ios --no-install
-          else
-            echo "ios/ already present, skipping prebuild"
-          fi
+      # Codemagic の Mac で毎回 prebuild して ios/ を生成（リポジトリに ios/ がなくてもビルド可能）
+      - name: Prebuild iOS
+        script: npx expo prebuild --platform ios --no-install
 
       - name: Install CocoaPods
         script: cd ios && pod install
