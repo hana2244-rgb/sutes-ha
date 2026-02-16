@@ -42,6 +42,18 @@ workflows:
           ls -la ios/ || true
           find ios -maxdepth 1 -name "*.xcworkspace" -type d || true
 
+      # ビルド番号を Codemagic の BUILD_NUMBER に合わせる（同じ番号だと App Store Connect が拒否するため）
+      - name: Set iOS build number
+        script: |
+          PLIST=$(find ios -name "Info.plist" -path "*/sutesho/*" | head -1)
+          if [ -z "$PLIST" ]; then
+            PLIST=$(find ios -name "Info.plist" -type f | head -1)
+          fi
+          if [ -n "$PLIST" ] && [ -n "$BUILD_NUMBER" ]; then
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
+            echo "Set CFBundleVersion to $BUILD_NUMBER in $PLIST"
+          fi
+
       - name: Install CocoaPods
         script: cd ios && pod install
 
