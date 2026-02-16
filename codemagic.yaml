@@ -1,0 +1,55 @@
+# ============================================================
+# 捨て写 - Codemagic iOS ビルド設定
+# ============================================================
+# リポジトリに codemagic.yaml を置き、Codemagic でアプリを追加すると
+# このワークフローでビルド・TestFlight 配信ができます。
+# https://codemagic.io でアプリを追加 → リポジトリ接続 → ビルド実行
+#
+# 事前に Codemagic の Code signing identities で以下を設定すること:
+# - App Store Connect API キー（.p8）
+# - iOS 証明書（Distribution）
+# - プロビジョニングプロファイル（App Store）
+
+workflows:
+  ios-release:
+    name: iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.Akifumi.H.trashsnap
+      vars:
+        XCODE_WORKSPACE: "sutesho.xcworkspace"
+        XCODE_SCHEME: "sutesho"
+        BUNDLE_ID: "com.Akifumi.H.trashsnap"
+
+    integrations:
+      app_store_connect: Codemagic_App_Store_Connect  # Codemagic「Team」→「Integrations」で登録した API キー名に変更
+
+    scripts:
+      - name: Install npm dependencies
+        script: npm ci
+
+      - name: Install CocoaPods
+        script: cd ios && pod install
+
+      - name: Set up code signing
+        script: xcode-project use-profiles
+
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$CM_BUILD_DIR/ios/$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # 初回は submit_to_testflight: false で IPA だけビルドし、手動アップロードしても可
