@@ -1,1 +1,44 @@
+# ============================================================
+# macOS で iOS prebuild を実行し、生成した ios/ をリポジトリに push
+# ============================================================
 
+name: Prebuild iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  prebuild:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prebuild iOS
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Commit and push ios/
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ios
+          if git diff --staged --quiet; then
+            echo "No changes to ios/"
+          else
+            git commit -m "chore(ios): generate ios/ via GitHub Actions prebuild"
+            git push
+          fi
