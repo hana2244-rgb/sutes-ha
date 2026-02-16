@@ -905,7 +905,7 @@ export function SwipeAllPhotosScreen() {
               const isReviewed = index < currentIndexRef.current;
               const isKept = isReviewed && !isDeleted && !isSkipped;
               const isCurrent = index === currentIndexRef.current;
-              const thumbUri = galleryThumbUris[item.id] ?? item.uri;
+              const thumbUri = galleryThumbUris[item.id];
 
               return (
                 <TouchableOpacity
@@ -918,11 +918,17 @@ export function SwipeAllPhotosScreen() {
                     isCurrent && styles.galleryThumbCurrent,
                   ]}
                 >
-                  <Image
-                    source={{ uri: thumbUri }}
-                    style={styles.galleryThumbImage}
-                    resizeMode="cover"
-                  />
+                  {thumbUri ? (
+                    <Image
+                      source={{ uri: thumbUri }}
+                      style={styles.galleryThumbImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[styles.galleryThumbImage, styles.galleryThumbPlaceholder]}>
+                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                    </View>
+                  )}
                   {isReviewed && isDeleted && (
                     <View style={styles.galleryDeleteOverlay}>
                       <Text style={styles.galleryDeleteIcon}>✕</Text>
@@ -1282,6 +1288,11 @@ const styles = StyleSheet.create({
   galleryThumbImage: {
     width: '100%',
     height: '100%',
+  },
+  galleryThumbPlaceholder: {
+    backgroundColor: theme.colors.bgCard,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   galleryDeleteOverlay: {
     ...StyleSheet.absoluteFillObject,

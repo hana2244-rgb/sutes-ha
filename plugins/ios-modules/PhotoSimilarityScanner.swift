@@ -589,7 +589,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         PHImageManager.default().cancelImageRequest(requestId)
       }
 
-      // 2nd attempt: local-only fastFormat (returns cached thumbnail if available)
+      // 2nd attempt: local-only fastFormat (accept degraded images as fallback)
       if resultURL == nil {
         let sem2 = DispatchSemaphore(value: 0)
         let retryOptions = PHImageRequestOptions()
@@ -598,24 +598,31 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         retryOptions.isSynchronous = false
         retryOptions.resizeMode = .fast
 
-        PHImageManager.default().requestImage(
+        var retryRequestId: PHImageRequestID = PHInvalidImageRequestID
+        retryRequestId = PHImageManager.default().requestImage(
           for: asset,
           targetSize: targetSize,
           contentMode: .aspectFill,
           options: retryOptions
         ) { image, info in
-          let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
-          if isDegraded { return }
-          defer { sem2.signal() }
           guard let image = image,
-                let data = image.jpegData(compressionQuality: quality) else { return }
+                let data = image.jpegData(compressionQuality: quality) else {
+            // No image at all — signal so we don't hang
+            let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
+            if !isDegraded { sem2.signal() }
+            return
+          }
           do {
             try data.write(to: fileURL, options: .atomic)
             resultURL = fileURL.absoluteString
           } catch {}
+          sem2.signal()
         }
 
-        _ = sem2.wait(timeout: .now() + 5.0)
+        let waitResult2 = sem2.wait(timeout: .now() + 5.0)
+        if waitResult2 == .timedOut {
+          PHImageManager.default().cancelImageRequest(retryRequestId)
+        }
       }
 
       completion(resultURL)

@@ -450,14 +450,6 @@ export function ScanScreen() {
       {scanState === 'scanning' && (
         <View>
           <ProgressBar progress={scanProgress} />
-          <View style={styles.pauseRow}>
-            <ActionButton
-              title={t('scan.pauseScan')}
-              onPress={pauseScan}
-              variant="ghost"
-              size="sm"
-            />
-          </View>
         </View>
       )}
 

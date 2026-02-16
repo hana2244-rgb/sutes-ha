@@ -223,8 +223,23 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
   const dismissTranslateY = useSharedValue(0);
   const DISMISS_THRESHOLD = 120;
 
-  const setZoomedTrue = useCallback(() => setIsZoomed(true), []);
-  const setZoomedFalse = useCallback(() => setIsZoomed(false), []);
+  const setZoomedTrue = useCallback(() => {
+    try {
+      setIsZoomed(true);
+    } catch (e) {
+      if (__DEV__) console.warn('[PhotoGroupCard] setZoomedTrue error:', e);
+    }
+  }, []);
+  const setZoomedFalse = useCallback(() => {
+    try {
+      setIsZoomed(false);
+    } catch (e) {
+      if (__DEV__) console.warn('[PhotoGroupCard] setZoomedFalse error:', e);
+    }
+  }, []);
+
+  // Use ref for close handler to avoid stale closure in gesture worklet
+  const closePreviewRef = useRef<() => void>(() => {});
 
   const previewPinchGesture = useMemo(() => Gesture.Pinch()
     .onUpdate((e) => {
@@ -245,9 +260,13 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
       }
     }), []);
 
+  const dismissViaRef = useCallback(() => {
+    closePreviewRef.current();
+  }, []);
+
   const dismissPanGesture = useMemo(() => Gesture.Pan()
-    .activeOffsetY([-12, 12])
-    .failOffsetX([-24, 24])
+    .activeOffsetY([-20, 20])
+    .failOffsetX([-30, 30])
     .onUpdate((e) => {
       if (previewPinchScale.value <= 1) {
         dismissTranslateY.value = e.translationY;
@@ -261,12 +280,12 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
           previewTranslateY.value = 0;
           previewSavedTranslateX.value = 0;
           previewSavedTranslateY.value = 0;
-          runOnJS(handleClosePreview)();
+          runOnJS(dismissViaRef)();
         } else {
           dismissTranslateY.value = withSpring(0);
         }
       }
-    }), [handleClosePreview]);
+    }), [dismissViaRef]);
 
   const zoomPanGesture = useMemo(() => Gesture.Pan()
     .minPointers(1)
@@ -349,6 +368,17 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
       closingPreviewRef.current = false;
     }, 300);
   }, []);
+
+  // runOnJS から呼ばれるクロージャは例外を必ず catch する（未捕捉だと Hermes が abort してクラッシュ）
+  const safeClosePreview = useCallback(() => {
+    try {
+      handleClosePreview();
+    } catch (e) {
+      if (__DEV__) console.warn('[PhotoGroupCard] handleClosePreview error:', e);
+    }
+  }, [handleClosePreview]);
+
+  closePreviewRef.current = safeClosePreview;
 
   const handlePreviewToggleKeep = useCallback((assetId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
