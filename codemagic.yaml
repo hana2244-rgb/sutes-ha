@@ -26,7 +26,7 @@ workflows:
         BUNDLE_ID: "com.Akifumi.H.trashsnap"
 
     integrations:
-      app_store_connect: CodemagicApp # Codemagic「Team」→「Integrations」で登録した API キー名に変更
+      app_store_connect: Codemagic_App # Codemagic「Team」→「Integrations」で登録した API キー名に変更
 
     scripts:
       - name: Install npm dependencies
