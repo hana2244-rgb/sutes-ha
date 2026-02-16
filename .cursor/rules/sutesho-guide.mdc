@@ -1,0 +1,50 @@
+---
+description: 捨て写（SuteSha）開発ガイド — 概要・構成・規約の要点（詳細はルートの CLAUDE.md 参照）
+alwaysApply: true
+---
+
+# 捨て写（SuteSha）開発ガイド（要点）
+
+> 詳細はプロジェクトルートの **CLAUDE.md** を参照すること。
+
+---
+
+## 概要
+
+- **捨て写**: 端末内の似ている写真を検出し、ユーザー主導で整理・削除。iOS 16+、React Native + Expo、Swift (UIKit)、Zustand、Reanimated、react-i18next。
+- **2モード**: 「スキャン開始」（類似グループ検出→選択→削除）、「スワイプで整理」（全写真 or グループをスワイプで整理）。
+- スキャンは一時停止で進捗保存、次回「続きから再開」。削除作業中は「今日はここまで」でリスト位置保存。
+
+---
+
+## ディレクトリ
+
+- **Native**: `ios/Modules/` および EAS 用 `plugins/ios-modules/`（Swift + .m）
+- **JS**: `src/types`, `src/theme`, `src/store`, `src/native`, `src/hooks`, `src/components`, `src/screens`（Onboarding, Scan, SwipeAllPhotos, SwipeGroupReview）, `src/i18n`, `src/navigation`
+
+---
+
+## JS ↔ Native（要点）
+
+- **JS→Native**: `requestPhotoPermission`, `startScan(level)`, `pauseScan`, `resumeScan(level)`, `getScanProgress`, `getFoundGroups`, `getSavedGroups`, `regroupWithLevel`, `deleteAssets`, `getThumbnailURL` / `getThumbnailURLs`, `getPreviewImage`, `getAllPhotos`, `saveCurrentState`, `hasPartialScan`, `clearCache`, `getTotalPhotoCount`
+- **Native→JS**: `onProgressUpdate`, `onGroupFound`, `onScanPaused`, `onScanCompleted`, `onThermalWarning`
+
+---
+
+## 型・テーマ
+
+- **型**: `ScanState`, `SimilarityLevel`, `PhotoAsset`, `SimilarGroup`（`keepAssetIds: string[]`）, `ScanProgress`（`phase` に `counting` 含む）。定義は `src/types/index.ts`。
+- **テーマ**: ソーダグラス（ライト・パステル）。`src/theme/index.ts` を必ず使用。
+
+---
+
+## 規約
+
+- TypeScript strict、関数コンポーネント + hooks、`StyleSheet.create`、触覚は `expo-haptics`。
+- Native 変更時: Swift 編集 → .m に `RCT_EXTERN_METHOD` → `src/native/PhotoSimilarityScanner.ts` にラッパー。EAS 用に `plugins/ios-modules/` も同期。
+
+---
+
+## 禁止事項
+
+- SwiftUI、ネットワーク、`UIBackgroundModes`、写真の自動削除、`performChanges` 以外での削除、FeaturePrint のフル解像度・メインスレッド処理。

@@ -27,7 +27,11 @@ workflows:
 
     integrations:
       # ↓ Codemagic「Teams」→「Integrations」→「Manage keys」で表示される API キー名と完全一致させる
+<<<<<<< HEAD
       app_store_connect: Codemagic_App
+=======
+      app_store_connect: Codemagic_App_Store_Connect
+>>>>>>> d8c7055 (Initial commit)
 
     scripts:
       - name: Install npm dependencies

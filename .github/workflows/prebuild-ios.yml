@@ -1,6 +1,14 @@
 # ============================================================
 # macOS で iOS prebuild を実行し、生成した ios/ をリポジトリに push
 # ============================================================
+<<<<<<< HEAD
+=======
+# Windows では iOS prebuild ができないため、このワークフローを
+# 手動実行すると GitHub の macOS ランナーで prebuild され、ios/ がコミットされます。
+# その後は Xcode Cloud でビルド可能です（Expo クレジット不要）。
+#
+# 使い方: GitHub リポジトリの Actions タブ → "Prebuild iOS" → "Run workflow"
+>>>>>>> d8c7055 (Initial commit)
 
 name: Prebuild iOS
 
@@ -11,7 +19,11 @@ jobs:
   prebuild:
     runs-on: macos-latest
     permissions:
+<<<<<<< HEAD
       contents: write
+=======
+      contents: write  # push するため
+>>>>>>> d8c7055 (Initial commit)
 
     steps:
       - name: Checkout
