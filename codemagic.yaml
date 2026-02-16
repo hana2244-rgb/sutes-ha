@@ -26,11 +26,22 @@ workflows:
         BUNDLE_ID: "com.Akifumi.H.trashsnap"
 
     integrations:
-      app_store_connect: Codemagic_App # Codemagic「Team」→「Integrations」で登録した API キー名に変更
+      # ↓ Codemagic「Teams」→「Integrations」→「Manage keys」で表示される API キー名と完全一致させる
+      app_store_connect: Codemagic_App_Store_Connect
 
     scripts:
       - name: Install npm dependencies
         script: npm ci
+
+      # リポジトリに ios/ がない場合（別ブランチなど）は prebuild で生成
+      - name: Prebuild iOS if needed
+        script: |
+          if [ ! -d ios ] || [ ! -d "ios/$XCODE_WORKSPACE" ]; then
+            echo "ios/ or workspace not found, running expo prebuild..."
+            npx expo prebuild --platform ios --no-install
+          else
+            echo "ios/ already present, skipping prebuild"
+          fi
 
       - name: Install CocoaPods
         script: cd ios && pod install
