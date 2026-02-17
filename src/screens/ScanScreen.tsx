@@ -163,9 +163,10 @@ export function ScanScreen() {
           if (action === 'swipe') {
             navigation.navigate('SwipeAllPhotos');
           } else if (action === 'scan') {
-            // 前回保存がある場合は自動スキャンせず再開カードを表示
             const partial = useAppStore.getState().hasPartialScan;
-            if (!partial) {
+            if (partial) {
+              resumeScan();
+            } else {
               startScan();
             }
           }

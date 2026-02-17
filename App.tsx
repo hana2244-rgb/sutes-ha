@@ -4,7 +4,7 @@
 
 import './src/i18n';
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -34,17 +34,15 @@ export default function App() {
       .initialize()
       .then((status) => {
         if (cancelled) return;
-        if (__DEV__) console.log('[AdMob] SDK initialized:', JSON.stringify(status));
+        clearTimeout(timeoutId);
+        const msg = JSON.stringify(status, null, 2);
+        Alert.alert('[AdMob] SDK OK', msg);
         setAdsSdkReady(true);
       })
       .catch((err) => {
-        if (__DEV__) {
-          console.warn(
-            '[AdMob] SDK init failed:',
-            err?.message ?? err,
-            '\nヒント: npx expo prebuild --platform ios 後に npx expo run:ios で起動していますか？ Expo Go では広告は表示されません。',
-          );
-        }
+        if (cancelled) return;
+        clearTimeout(timeoutId);
+        Alert.alert('[AdMob] SDK FAIL', err?.message ?? String(err));
         setAdsSdkReady(true);
       });
 

@@ -3,7 +3,7 @@
 // ============================================================
 
 import React, { useState, useCallback, useRef, useEffect, useContext } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import { BANNER_AD_UNIT_ID } from './adConfig';
@@ -26,12 +26,12 @@ export function AdMobBanner() {
   }, []);
 
   const handleAdLoaded = useCallback(() => {
-    if (__DEV__) console.log('[AdMobBanner] loaded');
+    Alert.alert('[Banner] OK', 'バナー広告の読み込み成功');
     retryCount.current = 0;
   }, []);
 
   const handleAdFailedToLoad = useCallback((error: Error) => {
-    if (__DEV__) console.warn('[AdMobBanner] failed:', error.message);
+    Alert.alert('[Banner] FAIL', error.message);
     if (retryCount.current < MAX_RETRIES) {
       const delay = RETRY_DELAYS[retryCount.current] ?? 60000;
       retryCount.current += 1;
