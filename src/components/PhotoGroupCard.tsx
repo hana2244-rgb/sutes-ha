@@ -28,6 +28,7 @@ import Animated, {
 import {
   Gesture,
   GestureDetector,
+  GestureHandlerRootView,
 } from 'react-native-gesture-handler';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
@@ -499,6 +500,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
         animationType="fade"
         onRequestClose={handleClosePreview}
       >
+        <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={styles.previewOverlayRoot}>
           <Animated.View style={[styles.previewOverlay, previewOverlayStyle]}>
             <TouchableOpacity
@@ -580,6 +582,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
             );
           })()}
         </View>
+        </GestureHandlerRootView>
       </Modal>
     </Animated.View>
   );

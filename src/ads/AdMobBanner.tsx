@@ -1,10 +1,9 @@
 // ============================================================
 // 捨て写 - AdMob バナー広告（常に画面下部）
 // ============================================================
-// Apple/AdMob 要件: 広告であることが分かる配置・個人化なしの場合は requestNonPersonalizedAdsOnly
 
 import React, { useState, useCallback, useRef, useEffect, useContext } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import { BANNER_AD_UNIT_ID } from './adConfig';
@@ -19,7 +18,6 @@ export function AdMobBanner() {
   const [adKey, setAdKey] = useState(0);
   const retryCount = useRef(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const bannerWidth = Math.floor(Dimensions.get('window').width);
 
   useEffect(() => {
     return () => {
@@ -39,31 +37,26 @@ export function AdMobBanner() {
       retryCount.current += 1;
       retryTimer.current = setTimeout(() => {
         if (__DEV__) console.log(`[AdMobBanner] retry ${retryCount.current}/${MAX_RETRIES}`);
-        setAdKey((k) => k + 1); // re-mount で再リクエスト
+        setAdKey((k) => k + 1);
       }, delay);
     }
   }, []);
 
+  if (!adsSdkReady) return <View style={[styles.container, { paddingBottom: insets.bottom }]} />;
+
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      {adsSdkReady && (
-        <BannerAd
-          key={adKey}
-          unitId={BANNER_AD_UNIT_ID}
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          width={bannerWidth}
-          requestOptions={{
-            requestNonPersonalizedAdsOnly: true,
-          }}
-          onAdLoaded={handleAdLoaded}
-          onAdFailedToLoad={handleAdFailedToLoad}
-        />
-      )}
+      <BannerAd
+        key={adKey}
+        unitId={BANNER_AD_UNIT_ID}
+        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+        requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+        onAdLoaded={handleAdLoaded}
+        onAdFailedToLoad={handleAdFailedToLoad}
+      />
     </View>
   );
 }
-
-const BANNER_MIN_HEIGHT = 60;
 
 const styles = StyleSheet.create({
   container: {
@@ -71,7 +64,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 6,
-    minHeight: BANNER_MIN_HEIGHT,
+    minHeight: 60,
     width: '100%',
   },
 });

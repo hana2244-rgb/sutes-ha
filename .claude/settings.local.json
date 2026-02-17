@@ -6,7 +6,8 @@
       "mcp__ide__getDiagnostics",
       "Bash(python3:*)",
       "Bash(npm install:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(npx expo prebuild:*)"
     ]
   }
 }

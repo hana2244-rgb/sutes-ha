@@ -38,7 +38,7 @@ workflows:
       - name: Prebuild iOS
         script: |
           set -e
-          npx expo prebuild --platform ios --no-install
+          npx expo prebuild --platform ios --clean --no-install
           echo "Contents of ios/ after prebuild:"
           ls -la ios/ || true
           find ios -maxdepth 1 -name "*.xcworkspace" -type d || true

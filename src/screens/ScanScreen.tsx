@@ -154,6 +154,23 @@ export function ScanScreen() {
       const count = await getPhotoCount();
       setPhotoCount(count);
       await checkPartialScan();
+
+      // checkPartialScan 完了後に initialAction を処理
+      if (!initialActionConsumed.current) {
+        const action = route.params?.initialAction;
+        if (action) {
+          initialActionConsumed.current = true;
+          if (action === 'swipe') {
+            navigation.navigate('SwipeAllPhotos');
+          } else if (action === 'scan') {
+            // 前回保存がある場合は自動スキャンせず再開カードを表示
+            const partial = useAppStore.getState().hasPartialScan;
+            if (!partial) {
+              startScan();
+            }
+          }
+        }
+      }
     })();
   }, []);
 
@@ -184,18 +201,6 @@ export function ScanScreen() {
       getPhotoCount().then(setPhotoCount);
     }, [getPhotoCount])
   );
-
-  useEffect(() => {
-    if (initialActionConsumed.current) return;
-    const action = route.params?.initialAction;
-    if (!action) return;
-    initialActionConsumed.current = true;
-    if (action === 'swipe') {
-      navigation.navigate('SwipeAllPhotos');
-    } else if (action === 'scan') {
-      startScan();
-    }
-  }, [route.params?.initialAction]);
 
   const totalDeletable = filteredGroups.reduce((sum, g) => {
     if (g.keepAssetIds.length === 0) return sum;

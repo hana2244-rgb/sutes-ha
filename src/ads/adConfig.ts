@@ -1,13 +1,12 @@
 // ============================================================
 // 捨て写 - AdMob 広告ユニットID
 // ============================================================
-// 開発時は TestIds、本番は AdMob ダッシュボードで取得したIDに差し替え
 
 import { TestIds } from 'react-native-google-mobile-ads';
 
 /** バナー広告ユニットID（常に画面下部） */
 export const BANNER_AD_UNIT_ID = __DEV__
-  ? TestIds.BANNER
+  ? TestIds.ADAPTIVE_BANNER
   : 'ca-app-pub-4182152923139643/8961635530';
 
 /** リワード広告ユニットID（まとめて削除時） */
