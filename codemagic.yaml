@@ -24,6 +24,7 @@ workflows:
         XCODE_WORKSPACE: "sutesho.xcworkspace"
         XCODE_SCHEME: "sutesho"
         BUNDLE_ID: "com.Akifumi.H.trashsnap"
+        APP_STORE_APPLE_ID: "6758648167"  # App Store Connect の「App 情報」→ Apple ID
 
     integrations:
       # ↓ Codemagic「Teams」→「Integrations」→「Manage keys」で表示される API キー名と完全一致させる
@@ -42,16 +43,17 @@ workflows:
           ls -la ios/ || true
           find ios -maxdepth 1 -name "*.xcworkspace" -type d || true
 
-      # ビルド番号を Codemagic の BUILD_NUMBER に合わせる（同じ番号だと App Store Connect が拒否するため）
+      # ビルド番号を App Store Connect の「最新 + 1」に設定（既存より大きくしないと拒否される）
       - name: Set iOS build number
         script: |
+          cd "$CM_BUILD_DIR"
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo "0")
+          NEW_VERSION=$((${LATEST:-0} + 1))
           PLIST=$(find ios -name "Info.plist" -path "*/sutesho/*" | head -1)
-          if [ -z "$PLIST" ]; then
-            PLIST=$(find ios -name "Info.plist" -type f | head -1)
-          fi
-          if [ -n "$PLIST" ] && [ -n "$BUILD_NUMBER" ]; then
-            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
-            echo "Set CFBundleVersion to $BUILD_NUMBER in $PLIST"
+          [ -z "$PLIST" ] && PLIST=$(find ios -name "Info.plist" -type f | head -1)
+          if [ -n "$PLIST" ]; then
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_VERSION" "$PLIST"
+            echo "Set CFBundleVersion to $NEW_VERSION (latest was $LATEST) in $PLIST"
           fi
 
       - name: Install CocoaPods
