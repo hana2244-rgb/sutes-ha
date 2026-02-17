@@ -168,8 +168,11 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         DispatchQueue.main.async { reject("SCAN_ERROR", "Scanner unavailable", nil) }
         return
       }
-      // 前回 runScan が完全に抜けるまで少し待つ（「ここまで」→再スキャン時のクラッシュ防止）
-      Thread.sleep(forTimeInterval: 0.4)
+      // 前回 runScan が完全に抜けるまで待つ
+      self.scanQueue.cancelAllOperations()
+      self.scanQueue.waitUntilAllOperationsAreFinished()
+      self.scanQueue.isSuspended = false
+      Thread.sleep(forTimeInterval: 0.2)
       var resolved = false
       defer {
         if !resolved {
@@ -217,7 +220,11 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         DispatchQueue.main.async { reject("SCAN_ERROR", "Scanner unavailable", nil) }
         return
       }
-      Thread.sleep(forTimeInterval: 0.4)
+      // 前回 runScan が完全に抜けるまで待つ
+      self.scanQueue.cancelAllOperations()
+      self.scanQueue.waitUntilAllOperationsAreFinished()
+      self.scanQueue.isSuspended = false
+      Thread.sleep(forTimeInterval: 0.2)
       var resolved = false
       defer {
         if !resolved {
@@ -229,7 +236,6 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       self.thresholdLock.unlock()
       self.isPaused = false
       self.shouldCancel = false
-      self.scanQueue.isSuspended = false
       self.loadCache()
 
       if let (resumeFrom, _) = self.loadProgressFromFile() {
