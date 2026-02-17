@@ -34,7 +34,7 @@ import {
   ThermalBanner,
 } from '../components';
 import type { SimilarGroup, PhotoAsset } from '../types';
-import { RESUME_FROM_GROUP_INDEX_KEY, HIDDEN_FULLY_KEPT_GROUP_IDS_KEY } from '../constants/storageKeys';
+import { RESUME_FROM_GROUP_INDEX_KEY, HIDDEN_FULLY_KEPT_GROUP_IDS_KEY, ONBOARDING_SEEN_KEY } from '../constants/storageKeys';
 import { useRewardedAdContext } from '../ads/RewardedAdContext';
 
 /** Expo Go 用デモデータ（プレースホルダー画像で類似グループを再現） */
@@ -361,9 +361,10 @@ export function ScanScreen() {
                 );
               }
 
+              await AsyncStorage.removeItem(ONBOARDING_SEEN_KEY).catch(() => {});
               setHasSeenOnboarding(false);
             } catch (e) {
-              console.warn('[ScanScreen] save resume index failed', e);
+              if (__DEV__) console.warn('[ScanScreen] save resume index failed', e);
             }
           },
         },
@@ -390,7 +391,7 @@ export function ScanScreen() {
           listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0 });
         }, 300);
       } catch (e) {
-        if (!cancelled) console.warn('[ScanScreen] restore resume index failed', e);
+        if (!cancelled && __DEV__) console.warn('[ScanScreen] restore resume index failed', e);
       }
     })();
     return () => {

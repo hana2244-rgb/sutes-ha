@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { theme } from '../theme';
 import { ActionButton } from '../components';
 import { useAppStore } from '../store';
-import { SWIPE_PROGRESS_KEY } from '../constants/storageKeys';
+import { ONBOARDING_SEEN_KEY, SWIPE_PROGRESS_KEY } from '../constants/storageKeys';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -36,6 +36,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
 
   const handleStart = (mode: 'swipe' | 'scan') => {
     setOnboardingSeen();
+    AsyncStorage.setItem(ONBOARDING_SEEN_KEY, 'true').catch(() => {});
     onComplete(mode);
   };
 

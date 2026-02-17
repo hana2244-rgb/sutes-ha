@@ -46,7 +46,7 @@ import {
 } from '../native/PhotoSimilarityScanner';
 import { useAppStore } from '../store';
 import type { PhotoAsset } from '../types';
-import { SWIPE_PROGRESS_KEY } from '../constants/storageKeys';
+import { ONBOARDING_SEEN_KEY, SWIPE_PROGRESS_KEY } from '../constants/storageKeys';
 import { useRewardedAdContext } from '../ads/RewardedAdContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -296,7 +296,7 @@ export function SwipeAllPhotosScreen() {
             }
           }
         } catch (e) {
-          console.warn('[SwipeAll] thumb batch failed', e);
+          if (__DEV__) console.warn('[SwipeAll] thumb batch failed', e);
         }
       })();
     }
@@ -462,6 +462,7 @@ export function SwipeAllPhotosScreen() {
   const handleFinishForNow = useCallback(async () => {
     await saveProgress();
     if (deleteIdsRef.current.size === 0) {
+      await AsyncStorage.removeItem(ONBOARDING_SEEN_KEY).catch(() => {});
       setHasSeenOnboarding(false);
       return;
     }
@@ -562,6 +563,7 @@ export function SwipeAllPhotosScreen() {
     deleteIdsRef.current.clear();
     setDeleteCount(0);
     await saveProgress();
+    await AsyncStorage.removeItem(ONBOARDING_SEEN_KEY).catch(() => {});
     setHasSeenOnboarding(false);
   }, [saveProgress, setHasSeenOnboarding]);
 
@@ -612,12 +614,13 @@ export function SwipeAllPhotosScreen() {
                   duration: 3000,
                 });
                 await clearProgress();
+                await AsyncStorage.removeItem(ONBOARDING_SEEN_KEY).catch(() => {});
                 setHasSeenOnboarding(false);
                 return;
               }
               addToast({ emoji: '❌', text: t('scanner.deleteFailed'), subtext: result.error });
             } catch (e) {
-              console.error('[SwipeAll] delete failed', e);
+              if (__DEV__) console.error('[SwipeAll] delete failed', e);
               addToast({ emoji: '❌', text: t('scanner.deleteError') });
             }
             await clearProgress();

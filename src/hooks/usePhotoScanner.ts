@@ -126,7 +126,7 @@ export function usePhotoScanner() {
       useAppStore.getState().setScanProgress(null);
       await startScan(useAppStore.getState().similarityLevel);
     } catch (error) {
-      console.error('[Scanner] Start failed:', error);
+      if (__DEV__) console.error('[Scanner] Start failed:', error);
       useAppStore.getState().setScanState('error');
       useAppStore.getState().addToast({
         emoji: '❌',
@@ -140,7 +140,7 @@ export function usePhotoScanner() {
     try {
       await pauseScan();
     } catch (error) {
-      console.error('[Scanner] Pause failed:', error);
+      if (__DEV__) console.error('[Scanner] Pause failed:', error);
     }
   }, []);
 
@@ -149,7 +149,7 @@ export function usePhotoScanner() {
       useAppStore.getState().setScanState('scanning');
       await resumeScan(useAppStore.getState().similarityLevel);
     } catch (error) {
-      console.error('[Scanner] Resume failed:', error);
+      if (__DEV__) console.error('[Scanner] Resume failed:', error);
       useAppStore.getState().setScanState('error');
     }
   }, []);
@@ -163,7 +163,7 @@ export function usePhotoScanner() {
           const newGroups = await regroupWithLevel(level);
           useAppStore.getState().setGroups(newGroups);
         } catch (error) {
-          console.error('[Scanner] Regroup failed:', error);
+          if (__DEV__) console.error('[Scanner] Regroup failed:', error);
         }
       }
     },
@@ -201,7 +201,7 @@ export function usePhotoScanner() {
         }
         return result;
       } catch (error) {
-        console.error('[Scanner] Delete failed:', error);
+        if (__DEV__) console.error('[Scanner] Delete failed:', error);
         useAppStore.getState().addToast({
           emoji: '❌',
           text: t('scanner.deleteError'),
@@ -228,7 +228,7 @@ export function usePhotoScanner() {
           useAppStore.getState().setGroups(savedGroups);
         }
       } catch (e) {
-        console.warn('[Scanner] getSavedGroups failed:', e);
+        if (__DEV__) console.warn('[Scanner] getSavedGroups failed:', e);
       }
     }
     return has;
@@ -248,7 +248,7 @@ export function usePhotoScanner() {
       const RNRestart = require('react-native-restart').default;
       RNRestart.restart();
     } catch (error) {
-      console.error('[Scanner] Clear cache failed:', error);
+      if (__DEV__) console.error('[Scanner] Clear cache failed:', error);
     }
   }, []);
 

@@ -5,7 +5,8 @@
       "Bash(curl:*)",
       "mcp__ide__getDiagnostics",
       "Bash(python3:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm ls:*)"
     ]
   }
 }

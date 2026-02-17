@@ -618,18 +618,28 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         reqOptions.isSynchronous = true
         reqOptions.resizeMode = .exact
 
-        self.cachingManager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: reqOptions) { image, _ in
-          defer {
+        self.cachingManager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: reqOptions) { [weak self] image, _ in
+          guard let image = image else {
             semaphore.signal()
             group.leave()
+            return
           }
-          guard let image = image, let data = self.imageToData(image, quality: quality) else { return }
-          do {
-            try data.write(to: fileURL, options: .atomic)
-            lock.lock()
-            result[assetId] = fileURL.absoluteString
-            lock.unlock()
-          } catch {}
+          let fileURL = fileURL
+          let quality = quality
+          // PHImageManager のコールバックはメインスレッドで来ることがあり、JPEG エンコードでクラッシュするためバックグラウンドで実行
+          DispatchQueue.global(qos: .userInitiated).async {
+            defer {
+              semaphore.signal()
+              group.leave()
+            }
+            guard let data = self?.imageToData(image, quality: quality) else { return }
+            do {
+              try data.write(to: fileURL, options: .atomic)
+              lock.lock()
+              result[assetId] = fileURL.absoluteString
+              lock.unlock()
+            } catch {}
+          }
         }
       }
 
@@ -668,7 +678,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     return image.pngData()
   }
 
-  /// isSynchronous で画像取得（他の方法が全て失敗した場合のフォールバック）
+  /// isSynchronous で画像取得（他の方法が全て失敗した場合のフォールバック）。コールバック内の JPEG 変換はバックグラウンドで実行。
   private func requestImageSync(asset: PHAsset, targetSize: CGSize, version: PHImageRequestOptionsVersion, quality: CGFloat) -> Data? {
     let opts = PHImageRequestOptions()
     opts.deliveryMode = .highQualityFormat
@@ -677,10 +687,16 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     opts.resizeMode = .fast
     opts.version = version
     var resultData: Data?
-    PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: opts) { image, _ in
-      guard let image = image else { return }
-      resultData = self.imageToData(image, quality: quality)
+    let sem = DispatchSemaphore(value: 0)
+    PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: opts) { [weak self] image, _ in
+      guard let image = image else { sem.signal(); return }
+      let quality = quality
+      DispatchQueue.global(qos: .userInitiated).async {
+        defer { sem.signal() }
+        resultData = self?.imageToData(image, quality: quality)
+      }
     }
+    sem.wait()
     return resultData
   }
 
@@ -722,14 +738,18 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       fastOptions.resizeMode = .exact
       fastOptions.version = .current
       var fastId: PHImageRequestID = PHInvalidImageRequestID
-      fastId = PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: fastOptions) { image, info in
-        // opportunistic は degraded コールバックを先に返す場合があるが、非 degraded の最終画像を待つ
+      fastId = PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: fastOptions) { [weak self] image, info in
         let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
         if isDegraded { return }
-        defer { fastSem.signal() }
-        guard let image = image, let data = self.imageToData(image, quality: quality) else { return }
-        try? data.write(to: fileURL, options: .atomic)
-        resultURL = fileURL.absoluteString
+        guard let image = image else { fastSem.signal(); return }
+        let fileURL = fileURL
+        let quality = quality
+        DispatchQueue.global(qos: .userInitiated).async {
+          defer { fastSem.signal() }
+          guard let data = self?.imageToData(image, quality: quality) else { return }
+          try? data.write(to: fileURL, options: .atomic)
+          resultURL = fileURL.absoluteString
+        }
       }
       if fastSem.wait(timeout: .now() + 3.0) == .timedOut {
         PHImageManager.default().cancelImageRequest(fastId)
@@ -754,15 +774,19 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         targetSize: targetSize,
         contentMode: .aspectFill,
         options: options
-      ) { image, info in
-        defer { sem.signal() }
-        guard let image = image,
-              let data = self.imageToData(image, quality: quality) else { return }
-        do {
-          try data.write(to: fileURL, options: .atomic)
-          resultURL = fileURL.absoluteString
-        } catch {
-          print("[SuteSha] thumb write error: \(error)")
+      ) { [weak self] image, info in
+        guard let image = image else { sem.signal(); return }
+        let fileURL = fileURL
+        let quality = quality
+        DispatchQueue.global(qos: .userInitiated).async {
+          defer { sem.signal() }
+          guard let data = self?.imageToData(image, quality: quality) else { return }
+          do {
+            try data.write(to: fileURL, options: .atomic)
+            resultURL = fileURL.absoluteString
+          } catch {
+            print("[SuteSha] thumb write error: \(error)")
+          }
         }
       }
 
@@ -788,18 +812,22 @@ class PhotoSimilarityScanner: RCTEventEmitter {
           targetSize: targetSize,
           contentMode: .aspectFill,
           options: retryOptions
-        ) { image, info in
-          guard let image = image,
-                let data = self.imageToData(image, quality: quality) else {
+        ) { [weak self] image, info in
+          guard let image = image else {
             let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
             if !isDegraded { sem2.signal() }
             return
           }
-          do {
-            try data.write(to: fileURL, options: .atomic)
-            resultURL = fileURL.absoluteString
-          } catch {}
-          sem2.signal()
+          let fileURL = fileURL
+          let quality = quality
+          DispatchQueue.global(qos: .userInitiated).async {
+            defer { sem2.signal() }
+            guard let data = self?.imageToData(image, quality: quality) else { return }
+            do {
+              try data.write(to: fileURL, options: .atomic)
+              resultURL = fileURL.absoluteString
+            } catch {}
+          }
         }
         _ = sem2.wait(timeout: .now() + 8.0)
         if resultURL == nil {
@@ -823,18 +851,22 @@ class PhotoSimilarityScanner: RCTEventEmitter {
           targetSize: targetSize,
           contentMode: .aspectFill,
           options: localOptions
-        ) { image, info in
-          guard let image = image,
-                let data = self.imageToData(image, quality: quality) else {
+        ) { [weak self] image, info in
+          guard let image = image else {
             let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
             if !isDegraded { sem3.signal() }
             return
           }
-          do {
-            try data.write(to: fileURL, options: .atomic)
-            resultURL = fileURL.absoluteString
-          } catch {}
-          sem3.signal()
+          let fileURL = fileURL
+          let quality = quality
+          DispatchQueue.global(qos: .userInitiated).async {
+            defer { sem3.signal() }
+            guard let data = self?.imageToData(image, quality: quality) else { return }
+            do {
+              try data.write(to: fileURL, options: .atomic)
+              resultURL = fileURL.absoluteString
+            } catch {}
+          }
         }
 
         let waitResult3 = sem3.wait(timeout: .now() + 5.0)

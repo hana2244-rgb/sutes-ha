@@ -34,7 +34,7 @@ export async function requestPhotoPermission(): Promise<
   'authorized' | 'limited' | 'denied'
 > {
   if (!isNativeAvailable) {
-    console.warn('[Scanner] Native module not available, using mock');
+    if (__DEV__) console.warn('[Scanner] Native module not available, using mock');
     return 'authorized';
   }
   return NativeScanner.requestPhotoPermission();
@@ -42,7 +42,7 @@ export async function requestPhotoPermission(): Promise<
 
 export async function startScan(level: SimilarityLevel): Promise<void> {
   if (!isNativeAvailable) {
-    console.warn('[Scanner] Native module not available');
+    if (__DEV__) console.warn('[Scanner] Native module not available');
     return;
   }
   const threshold = THRESHOLD_MAP[level];

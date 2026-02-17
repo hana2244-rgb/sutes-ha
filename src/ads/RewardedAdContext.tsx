@@ -69,16 +69,16 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
   // エラーカウント変化でリトライ（error 参照が同じでも動く）
   useEffect(() => {
     if (errorCount === 0) return;
-    console.warn(`[RewardedAd] load error #${errorCount}:`, error?.message);
+    if (__DEV__) console.warn(`[RewardedAd] load error #${errorCount}:`, error?.message);
 
     if (loadAttemptRef.current < maxRetries) {
       loadAttemptRef.current += 1;
       const delay = loadAttemptRef.current * 2000; // 2s, 4s, 6s
-      console.log(`[RewardedAd] retry ${loadAttemptRef.current}/${maxRetries} in ${delay}ms`);
+      if (__DEV__) console.log(`[RewardedAd] retry ${loadAttemptRef.current}/${maxRetries} in ${delay}ms`);
       retryTimerRef.current = setTimeout(() => load(), delay);
     } else if (pendingResolveRef.current) {
       // 最大リトライ超過 → 広告なしで削除を許可
-      console.warn('[RewardedAd] max retries exceeded, allowing action without ad');
+      if (__DEV__) console.warn('[RewardedAd] max retries exceeded, allowing action without ad');
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
@@ -108,7 +108,7 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
       timeoutRef.current = setTimeout(() => {
         timeoutRef.current = null;
         if (pendingResolveRef.current) {
-          console.warn('[RewardedAd] timeout, allowing action without ad');
+          if (__DEV__) console.warn('[RewardedAd] timeout, allowing action without ad');
           pendingResolveRef.current(true);
           pendingResolveRef.current = null;
           needShowWhenLoadedRef.current = false;
@@ -116,10 +116,10 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
       }, 15000);
 
       if (isLoaded) {
-        console.log('[RewardedAd] showing (already loaded)');
+        if (__DEV__) console.log('[RewardedAd] showing (already loaded)');
         show();
       } else {
-        console.log('[RewardedAd] not loaded yet, loading...');
+        if (__DEV__) console.log('[RewardedAd] not loaded yet, loading...');
         needShowWhenLoadedRef.current = true;
         loadAttemptRef.current = 0;
         load();
@@ -129,14 +129,14 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (isEarnedReward) {
-      console.log('[RewardedAd] reward earned');
+      if (__DEV__) console.log('[RewardedAd] reward earned');
       earnedRef.current = true;
     }
   }, [isEarnedReward]);
 
   useEffect(() => {
     if (isLoaded) {
-      console.log('[RewardedAd] loaded');
+      if (__DEV__) console.log('[RewardedAd] loaded');
       if (needShowWhenLoadedRef.current) {
         needShowWhenLoadedRef.current = false;
         show();
@@ -146,7 +146,7 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (isClosed) {
-      console.log('[RewardedAd] closed, earned:', earnedRef.current);
+      if (__DEV__) console.log('[RewardedAd] closed, earned:', earnedRef.current);
       if (pendingResolveRef.current) {
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);

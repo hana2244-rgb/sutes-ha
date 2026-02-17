@@ -28,17 +28,17 @@ export function AdMobBanner() {
   }, []);
 
   const handleAdLoaded = useCallback(() => {
-    console.log('[AdMobBanner] loaded');
+    if (__DEV__) console.log('[AdMobBanner] loaded');
     retryCount.current = 0;
   }, []);
 
   const handleAdFailedToLoad = useCallback((error: Error) => {
-    console.warn('[AdMobBanner] failed:', error.message);
+    if (__DEV__) console.warn('[AdMobBanner] failed:', error.message);
     if (retryCount.current < MAX_RETRIES) {
       const delay = RETRY_DELAYS[retryCount.current] ?? 60000;
       retryCount.current += 1;
       retryTimer.current = setTimeout(() => {
-        console.log(`[AdMobBanner] retry ${retryCount.current}/${MAX_RETRIES}`);
+        if (__DEV__) console.log(`[AdMobBanner] retry ${retryCount.current}/${MAX_RETRIES}`);
         setAdKey((k) => k + 1); // re-mount で再リクエスト
       }, delay);
     }

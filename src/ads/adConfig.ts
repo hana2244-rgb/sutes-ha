@@ -8,9 +8,9 @@ import { TestIds } from 'react-native-google-mobile-ads';
 /** バナー広告ユニットID（常に画面下部） */
 export const BANNER_AD_UNIT_ID = __DEV__
   ? TestIds.BANNER
-  : 'ca-app-pub-xxxxxxxxxxxxxxxx/yyyyyyyyyy'; // 本番用に差し替え
+  : 'ca-app-pub-4182152923139643/8961635530';
 
 /** リワード広告ユニットID（まとめて削除時） */
 export const REWARDED_AD_UNIT_ID = __DEV__
   ? TestIds.REWARDED
-  : 'ca-app-pub-xxxxxxxxxxxxxxxx/yyyyyyyyyy'; // 本番用に差し替え
+  : 'ca-app-pub-4182152923139643/6791040834';
