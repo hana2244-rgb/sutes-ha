@@ -220,7 +220,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
   const previewTranslateY = useSharedValue(0);
   const previewSavedTranslateX = useSharedValue(0);
   const previewSavedTranslateY = useSharedValue(0);
-  // Dismiss swipe (vertical drag at scale=1)
+  // Dismiss swipe (vertical drag anywhere on image)
   const dismissTranslateY = useSharedValue(0);
   const DISMISS_THRESHOLD = 120;
 
@@ -269,22 +269,19 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
     .activeOffsetY([-20, 20])
     .failOffsetX([-30, 30])
     .onUpdate((e) => {
-      if (previewPinchScale.value <= 1) {
-        dismissTranslateY.value = e.translationY;
-      }
+      // ズーム状態に関わらず、明確な縦スワイプであれば閉じる方向に動かす
+      dismissTranslateY.value = e.translationY;
     })
     .onEnd(() => {
-      if (previewPinchScale.value <= 1) {
-        if (Math.abs(dismissTranslateY.value) > DISMISS_THRESHOLD) {
-          dismissTranslateY.value = 0;
-          previewTranslateX.value = 0;
-          previewTranslateY.value = 0;
-          previewSavedTranslateX.value = 0;
-          previewSavedTranslateY.value = 0;
-          runOnJS(dismissViaRef)();
-        } else {
-          dismissTranslateY.value = withSpring(0);
-        }
+      if (Math.abs(dismissTranslateY.value) > DISMISS_THRESHOLD) {
+        dismissTranslateY.value = 0;
+        previewTranslateX.value = 0;
+        previewTranslateY.value = 0;
+        previewSavedTranslateX.value = 0;
+        previewSavedTranslateY.value = 0;
+        runOnJS(dismissViaRef)();
+      } else {
+        dismissTranslateY.value = withSpring(0);
       }
     }), [dismissViaRef]);
 
@@ -305,7 +302,8 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
 
   const previewComposedGesture = useMemo(() => Gesture.Simultaneous(
     previewPinchGesture,
-    Gesture.Exclusive(zoomPanGesture, dismissPanGesture),
+    // 縦スワイプでの閉じる操作を優先（失敗したときだけズーム中パンを有効化）
+    Gesture.Exclusive(dismissPanGesture, zoomPanGesture),
   ), [previewPinchGesture, zoomPanGesture, dismissPanGesture]);
 
   const previewZoomStyle = useAnimatedStyle(() => ({
