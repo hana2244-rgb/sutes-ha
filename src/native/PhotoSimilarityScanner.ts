@@ -25,9 +25,9 @@ const scannerEmitter = isNativeAvailable
   : null;
 
 const THRESHOLD_MAP: Record<SimilarityLevel, number> = {
-  very_similar: 0.22,
-  similar: 0.32,
-  maybe_similar: 0.42,
+  very_similar: 0.32,
+  similar: 0.5,
+  maybe_similar: 0.7,
 };
 
 export async function requestPhotoPermission(): Promise<

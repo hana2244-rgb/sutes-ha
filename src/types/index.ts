@@ -16,17 +16,17 @@ export const SIMILARITY_LEVELS: SimilarityConfig[] = [
   {
     key: 'very_similar',
     emoji: '🎯',
-    threshold: 0.22,
+    threshold: 0.32,
   },
   {
     key: 'similar',
     emoji: '🔍',
-    threshold: 0.32,
+    threshold: 0.5,
   },
   {
     key: 'maybe_similar',
     emoji: '🌀',
-    threshold: 0.42,
+    threshold: 0.7,
   },
 ];
 

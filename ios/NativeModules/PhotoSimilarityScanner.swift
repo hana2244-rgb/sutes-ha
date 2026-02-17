@@ -161,11 +161,20 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   // MARK: - Scan
 
   @objc func startScan(_ threshold: Double, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    // 前回の runScan がまだ動いていれば抜けるようにする（「ここまで」未押しで再スキャンした場合のクラッシュ防止）
     shouldCancel = true
 
     scanExecutionQueue.async { [weak self] in
-      guard let self = self else { return }
+      guard let self = self else {
+        DispatchQueue.main.async { reject("SCAN_ERROR", "Scanner unavailable", nil) }
+        return
+      }
+      Thread.sleep(forTimeInterval: 0.4)
+      var resolved = false
+      defer {
+        if !resolved {
+          DispatchQueue.main.async { reject("SCAN_ERROR", "Scan failed", nil) }
+        }
+      }
       self.thresholdLock.lock()
       self.currentThreshold = threshold
       self.thresholdLock.unlock()
@@ -177,8 +186,10 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       self.loadCache()
       do {
         try self.runScan()
+        resolved = true
         DispatchQueue.main.async { resolve(NSNull()) }
       } catch {
+        resolved = true
         DispatchQueue.main.async { reject("SCAN_ERROR", error.localizedDescription, error) }
       }
     }
@@ -201,7 +212,17 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     shouldCancel = true
 
     scanExecutionQueue.async { [weak self] in
-      guard let self = self else { return }
+      guard let self = self else {
+        DispatchQueue.main.async { reject("SCAN_ERROR", "Scanner unavailable", nil) }
+        return
+      }
+      Thread.sleep(forTimeInterval: 0.4)
+      var resolved = false
+      defer {
+        if !resolved {
+          DispatchQueue.main.async { reject("SCAN_ERROR", "Resume failed", nil) }
+        }
+      }
       self.thresholdLock.lock()
       self.currentThreshold = threshold
       self.thresholdLock.unlock()
@@ -214,6 +235,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         if let saved = self.loadFoundGroupsFile() {
           self.foundGroups = saved
         }
+        resolved = true
         DispatchQueue.main.async { resolve(NSNull()) }
         do {
           try self.runScan(resumeFrom: resumeFrom)
@@ -228,6 +250,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         }
       } else {
         self.foundGroups = []
+        resolved = true
         DispatchQueue.main.async { resolve(NSNull()) }
         do {
           try self.runScan()
