@@ -327,15 +327,21 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
   const loadPreviewUri = useCallback(async (assetId: string) => {
     if (previewUrisRef.current[assetId]) return;
     setPreviewLoadingIds((prev) => new Set(prev).add(assetId));
-    const uri = await getPreviewImage(assetId);
-    if (!uri) return;
-    previewUrisRef.current[assetId] = uri;
-    setPreviewUris((prev) => ({ ...prev, [assetId]: uri }));
-    setPreviewLoadingIds((prev) => {
-      const next = new Set(prev);
-      next.delete(assetId);
-      return next;
-    });
+    try {
+      const uri = await getPreviewImage(assetId);
+      if (uri) {
+        previewUrisRef.current[assetId] = uri;
+        setPreviewUris((prev) => ({ ...prev, [assetId]: uri }));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setPreviewLoadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(assetId);
+        return next;
+      });
+    }
   }, []);
 
   const handleLongPress = useCallback(async (assetId: string) => {

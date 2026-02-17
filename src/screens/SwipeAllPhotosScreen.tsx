@@ -270,23 +270,24 @@ export function SwipeAllPhotosScreen() {
     const ids = Array.from(deleteIdsRef.current);
     setReviewDeleteIds(ids);
     setPhase('review');
-    // サムネイルを早く見せる: まず先頭だけ即取得 → 残りを並列バッチで取得
+    // サムネイルを早く見せる: 最小の先行バッチ → 続けて並列バッチを多めに
     if (isNative && ids.length > 0) {
-      const FIRST_BATCH = 24;
-      const BATCH_SIZE = 40;
-      const PARALLEL_BATCHES = 3;
+      const FIRST_BATCH = 12;
+      const BATCH_SIZE = 32;
+      const PARALLEL_BATCHES = 5;
+      const thumbSize = Math.max(128, Math.round(REVIEW_THUMB_SIZE * 1.5));
       (async () => {
         try {
           const first = ids.slice(0, FIRST_BATCH);
-          const firstThumbs = await getThumbnailURLs(first, REVIEW_THUMB_SIZE * 2, REVIEW_THUMB_SIZE * 2);
+          const firstThumbs = await getThumbnailURLs(first, thumbSize, thumbSize);
           setReviewThumbUris((prev) => ({ ...prev, ...firstThumbs }));
           for (let i = FIRST_BATCH; i < ids.length; i += BATCH_SIZE * PARALLEL_BATCHES) {
             const promises: Promise<Record<string, string>>[] = [];
             for (let j = 0; j < PARALLEL_BATCHES; j++) {
               const start = i + j * BATCH_SIZE;
               if (start >= ids.length) break;
-              const batch = ids.slice(start, start + BATCH_SIZE);
-              promises.push(getThumbnailURLs(batch, REVIEW_THUMB_SIZE * 2, REVIEW_THUMB_SIZE * 2));
+            const batch = ids.slice(start, start + BATCH_SIZE);
+            promises.push(getThumbnailURLs(batch, thumbSize, thumbSize));
             }
             const results = await Promise.all(promises);
             const merged = Object.assign({}, ...results);
@@ -477,10 +478,10 @@ export function SwipeAllPhotosScreen() {
     if (!isNative) return;
 
     (async () => {
-      // 残りページを読みつつ、先に表示する分のサムネイルを先行取得
-      const GALLERY_FIRST_BATCH = 48;
-      const GALLERY_BATCH_SIZE = 80;
-      const GALLERY_PARALLEL = 3;
+      const GALLERY_FIRST_BATCH = 24;
+      const GALLERY_BATCH_SIZE = 60;
+      const GALLERY_PARALLEL = 5;
+      const galleryThumbSize = Math.max(128, Math.round(GALLERY_THUMB_SIZE * 1.5));
 
       while (photosRef.current.length < totalRef.current) {
         if (loadingMoreRef.current) {
@@ -494,7 +495,7 @@ export function SwipeAllPhotosScreen() {
       const photoIds = photos.map((p) => p.id);
       try {
         const first = photoIds.slice(0, GALLERY_FIRST_BATCH);
-        const firstThumbs = await getThumbnailURLs(first, GALLERY_THUMB_SIZE * 2, GALLERY_THUMB_SIZE * 2);
+        const firstThumbs = await getThumbnailURLs(first, galleryThumbSize, galleryThumbSize);
         setGalleryThumbUris((prev) => ({ ...prev, ...firstThumbs }));
         for (let i = GALLERY_FIRST_BATCH; i < photoIds.length; i += GALLERY_BATCH_SIZE * GALLERY_PARALLEL) {
           const promises: Promise<Record<string, string>>[] = [];
@@ -502,7 +503,7 @@ export function SwipeAllPhotosScreen() {
             const start = i + j * GALLERY_BATCH_SIZE;
             if (start >= photoIds.length) break;
             const batch = photoIds.slice(start, start + GALLERY_BATCH_SIZE);
-            promises.push(getThumbnailURLs(batch, GALLERY_THUMB_SIZE * 2, GALLERY_THUMB_SIZE * 2));
+            promises.push(getThumbnailURLs(batch, galleryThumbSize, galleryThumbSize));
           }
           const results = await Promise.all(promises);
           const merged = Object.assign({}, ...results);

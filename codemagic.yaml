@@ -86,4 +86,5 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+        # 外部テスト用には App Store Connect で「テスト情報」に Beta App Description の入力が必須
         # 初回は submit_to_testflight: false で IPA だけビルドし、手動アップロードしても可

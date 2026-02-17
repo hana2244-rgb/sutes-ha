@@ -502,7 +502,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
 
     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
       guard let self = self else { return }
-      let semaphore = DispatchSemaphore(value: 6) // 同時実行数（スワイプ一覧の読み込みを速くする）
+      let semaphore = DispatchSemaphore(value: 8) // 同時実行数（スワイプ一覧の体感速度向上）
       let group = DispatchGroup()
 
       for assetId in assetIds {
@@ -530,6 +530,41 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     }
   }
 
+  /// UIImage → Data 変換。jpegData が失敗する写真（特定の HEIC/HDR/調整済み等）向けに pngData フォールバック付き
+  private func imageToData(_ image: UIImage, quality: CGFloat) -> Data? {
+    if let data = image.jpegData(compressionQuality: quality) {
+      return data
+    }
+    // jpegData が nil を返す写真タイプ向け: CIImage 経由で再描画してから JPEG 化
+    if let ciImage = image.ciImage ?? (image.cgImage.map { CIImage(cgImage: $0) }) {
+      let context = CIContext()
+      if let cgImage = context.createCGImage(ciImage, from: ciImage.extent) {
+        let redrawn = UIImage(cgImage: cgImage)
+        if let data = redrawn.jpegData(compressionQuality: quality) {
+          return data
+        }
+      }
+    }
+    // 最終手段: pngData
+    return image.pngData()
+  }
+
+  /// isSynchronous で画像取得（他の方法が全て失敗した場合のフォールバック）
+  private func requestImageSync(asset: PHAsset, targetSize: CGSize, version: PHImageRequestOptionsVersion, quality: CGFloat) -> Data? {
+    let opts = PHImageRequestOptions()
+    opts.deliveryMode = .highQualityFormat
+    opts.isNetworkAccessAllowed = false
+    opts.isSynchronous = true
+    opts.resizeMode = .fast
+    opts.version = version
+    var resultData: Data?
+    PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: opts) { image, _ in
+      guard let image = image else { return }
+      resultData = self.imageToData(image, quality: quality)
+    }
+    return resultData
+  }
+
   private func exportImageToFile(assetId: String, targetWidth: Int, targetHeight: Int, prefix: String, quality: CGFloat, completion: @escaping (String?) -> Void) {
     guard let dir = thumbDir else {
       completion(nil)
@@ -553,12 +588,33 @@ class PhotoSimilarityScanner: RCTEventEmitter {
 
     let targetSize = CGSize(width: targetWidth, height: targetHeight)
 
-    // Use async callback with semaphore instead of isSynchronous to avoid
-    // silent failures with iCloud photos on background threads
-    DispatchQueue.global(qos: .userInitiated).async {
-      let sem = DispatchSemaphore(value: 0)
+    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+      guard let self = self else { completion(nil); return }
       var resultURL: String?
 
+      // 高速表示: fastFormat を短タイムアウトで試し、すぐ返せるなら即返す（一覧の体感速度向上）
+      let fastSem = DispatchSemaphore(value: 0)
+      let fastOptions = PHImageRequestOptions()
+      fastOptions.deliveryMode = .fastFormat
+      fastOptions.isNetworkAccessAllowed = true
+      fastOptions.resizeMode = .fast
+      fastOptions.version = .current
+      var fastId: PHImageRequestID = PHInvalidImageRequestID
+      fastId = PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: fastOptions) { image, _ in
+        defer { fastSem.signal() }
+        guard let image = image, let data = self.imageToData(image, quality: quality) else { return }
+        try? data.write(to: fileURL, options: .atomic)
+        resultURL = fileURL.absoluteString
+      }
+      if fastSem.wait(timeout: .now() + 1.5) == .timedOut {
+        PHImageManager.default().cancelImageRequest(fastId)
+      }
+      if resultURL != nil {
+        completion(resultURL)
+        return
+      }
+
+      let sem = DispatchSemaphore(value: 0)
       // 1st attempt: highQualityFormat (iCloud download allowed). degraded も受け入れる
       let options = PHImageRequestOptions()
       options.deliveryMode = .highQualityFormat
@@ -576,7 +632,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       ) { image, info in
         defer { sem.signal() }
         guard let image = image,
-              let data = image.jpegData(compressionQuality: quality) else { return }
+              let data = self.imageToData(image, quality: quality) else { return }
         do {
           try data.write(to: fileURL, options: .atomic)
           resultURL = fileURL.absoluteString
@@ -609,7 +665,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
           options: retryOptions
         ) { image, info in
           guard let image = image,
-                let data = image.jpegData(compressionQuality: quality) else {
+                let data = self.imageToData(image, quality: quality) else {
             let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
             if !isDegraded { sem2.signal() }
             return
@@ -644,7 +700,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
           options: localOptions
         ) { image, info in
           guard let image = image,
-                let data = image.jpegData(compressionQuality: quality) else {
+                let data = self.imageToData(image, quality: quality) else {
             let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
             if !isDegraded { sem3.signal() }
             return
@@ -662,8 +718,28 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         }
       }
 
+      // 4th attempt: unadjusted 版を同期リクエスト（調整済み写真で .current が失敗する場合の最終手段）
       if resultURL == nil {
-        print("[SuteSha] thumb: failed after retry id=\(assetId.prefix(40))...")
+        if let data = self.requestImageSync(asset: asset, targetSize: targetSize, version: .unadjusted, quality: quality) {
+          do {
+            try data.write(to: fileURL, options: .atomic)
+            resultURL = fileURL.absoluteString
+          } catch {}
+        }
+      }
+
+      // 5th attempt: original 版（unadjusted も失敗する場合）
+      if resultURL == nil {
+        if let data = self.requestImageSync(asset: asset, targetSize: targetSize, version: .original, quality: quality) {
+          do {
+            try data.write(to: fileURL, options: .atomic)
+            resultURL = fileURL.absoluteString
+          } catch {}
+        }
+      }
+
+      if resultURL == nil {
+        print("[SuteSha] thumb: failed after all attempts id=\(assetId.prefix(40))...")
       }
       completion(resultURL)
     }
