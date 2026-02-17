@@ -29,6 +29,7 @@ import {
   Gesture,
   GestureDetector,
   GestureHandlerRootView,
+  FlatList as GHFlatList,
 } from 'react-native-gesture-handler';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
@@ -207,7 +208,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
   const [previewUris, setPreviewUris] = useState<Record<string, string>>({});
   const previewUrisRef = useRef<Record<string, string>>({});
   const [previewLoadingIds, setPreviewLoadingIds] = useState<Set<string>>(new Set());
-  const previewListRef = useRef<FlatList>(null);
+  const previewListRef = useRef<GHFlatList<PhotoAsset>>(null);
 
   // Track whether zoomed for FlatList scrollEnabled (must be JS state, not shared value)
   const [isZoomed, setIsZoomed] = useState(false);
@@ -518,7 +519,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
 
           <GestureDetector gesture={previewComposedGesture}>
             <Animated.View style={[styles.previewZoomContainer, previewZoomStyle]}>
-              <FlatList
+              <GHFlatList
                 ref={previewListRef}
                 data={group.assets}
                 horizontal

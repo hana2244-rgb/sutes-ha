@@ -11,7 +11,6 @@ import React, {
   useEffect,
   useRef,
 } from 'react';
-import { Alert } from 'react-native';
 import {
   RewardedAd,
   RewardedAdEventType,
@@ -61,7 +60,7 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
     adRef.current = ad;
 
     const unsubLoaded = ad.addAdEventListener(RewardedAdEventType.LOADED, () => {
-      Alert.alert('[Rewarded] OK', 'リワード広告の読み込み成功');
+      if (__DEV__) console.log('[RewardedAd] loaded');
       isLoadedRef.current = true;
       loadAttemptRef.current = 0;
 
@@ -86,7 +85,7 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
     });
 
     const unsubError = ad.addAdEventListener(AdEventType.ERROR, (error) => {
-      Alert.alert('[Rewarded] FAIL', error.message);
+      if (__DEV__) console.warn('[RewardedAd] error:', error.message);
       isLoadedRef.current = false;
 
       if (loadAttemptRef.current < MAX_RETRIES) {

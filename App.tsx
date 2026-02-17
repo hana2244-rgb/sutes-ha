@@ -4,7 +4,7 @@
 
 import './src/i18n';
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -35,14 +35,13 @@ export default function App() {
       .then((status) => {
         if (cancelled) return;
         clearTimeout(timeoutId);
-        const msg = JSON.stringify(status, null, 2);
-        Alert.alert('[AdMob] SDK OK', msg);
+        if (__DEV__) console.log('[AdMob] SDK initialized:', JSON.stringify(status));
         setAdsSdkReady(true);
       })
       .catch((err) => {
         if (cancelled) return;
         clearTimeout(timeoutId);
-        Alert.alert('[AdMob] SDK FAIL', err?.message ?? String(err));
+        if (__DEV__) console.warn('[AdMob] SDK init failed:', err?.message ?? err);
         setAdsSdkReady(true);
       });
 
