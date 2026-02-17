@@ -29,6 +29,8 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   private let thresholdLock = NSLock()
   private var currentThreshold: Double = 0.32
   private var thermalObserver: NSObjectProtocol?
+  /// スキャン実行を直列化し、二重 runScan によるクラッシュを防止
+  private let scanExecutionQueue = DispatchQueue(label: "sutesho.scan.execution")
 
   override init() {
     super.init()
@@ -131,18 +133,20 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   // MARK: - Scan
 
   @objc func startScan(_ threshold: Double, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    thresholdLock.lock()
-    currentThreshold = threshold
-    thresholdLock.unlock()
-    isPaused = false
-    shouldCancel = false
-    foundGroups = []
-    deleteProgressFile()
-    deleteFoundGroupsFile()
-    loadCache()
+    // 前回の runScan がまだ動いていれば抜けるようにする（「ここまで」未押しで再スキャンした場合のクラッシュ防止）
+    shouldCancel = true
 
-    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+    scanExecutionQueue.async { [weak self] in
       guard let self = self else { return }
+      self.thresholdLock.lock()
+      self.currentThreshold = threshold
+      self.thresholdLock.unlock()
+      self.isPaused = false
+      self.shouldCancel = false
+      self.foundGroups = []
+      self.deleteProgressFile()
+      self.deleteFoundGroupsFile()
+      self.loadCache()
       do {
         try self.runScan()
         DispatchQueue.main.async { resolve(NSNull()) }
@@ -166,21 +170,23 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   }
 
   @objc func resumeScan(_ threshold: Double, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    thresholdLock.lock()
-    currentThreshold = threshold
-    thresholdLock.unlock()
-    isPaused = false
-    shouldCancel = false
-    scanQueue.isSuspended = false
-    loadCache()
+    shouldCancel = true
 
-    if let (resumeFrom, _) = loadProgressFromFile() {
-      if let saved = loadFoundGroupsFile() {
-        foundGroups = saved
-      }
-      DispatchQueue.main.async { resolve(NSNull()) }
-      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-        guard let self = self else { return }
+    scanExecutionQueue.async { [weak self] in
+      guard let self = self else { return }
+      self.thresholdLock.lock()
+      self.currentThreshold = threshold
+      self.thresholdLock.unlock()
+      self.isPaused = false
+      self.shouldCancel = false
+      self.scanQueue.isSuspended = false
+      self.loadCache()
+
+      if let (resumeFrom, _) = self.loadProgressFromFile() {
+        if let saved = self.loadFoundGroupsFile() {
+          self.foundGroups = saved
+        }
+        DispatchQueue.main.async { resolve(NSNull()) }
         do {
           try self.runScan(resumeFrom: resumeFrom)
           self.saveProgressFile(current: 0, total: 0, phase: "idle")
@@ -192,12 +198,9 @@ class PhotoSimilarityScanner: RCTEventEmitter {
           self.deleteProgressFile()
           self.deleteFoundGroupsFile()
         }
-      }
-    } else {
-      foundGroups = []
-      DispatchQueue.main.async { resolve(NSNull()) }
-      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-        guard let self = self else { return }
+      } else {
+        self.foundGroups = []
+        DispatchQueue.main.async { resolve(NSNull()) }
         do {
           try self.runScan()
           self.saveProgressFile(current: 0, total: 0, phase: "idle")
@@ -499,7 +502,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
 
     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
       guard let self = self else { return }
-      let semaphore = DispatchSemaphore(value: 4) // 同時実行数制限
+      let semaphore = DispatchSemaphore(value: 6) // 同時実行数（スワイプ一覧の読み込みを速くする）
       let group = DispatchGroup()
 
       for assetId in assetIds {
@@ -543,6 +546,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
 
     let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
     guard let asset = fetchResult.firstObject else {
+      print("[SuteSha] thumb: asset not found id=\(assetId.prefix(40))...")
       completion(nil)
       return
     }
@@ -555,12 +559,13 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       let sem = DispatchSemaphore(value: 0)
       var resultURL: String?
 
-      // 1st attempt: highQualityFormat (iCloud download allowed)
+      // 1st attempt: highQualityFormat (iCloud download allowed). degraded も受け入れる
       let options = PHImageRequestOptions()
       options.deliveryMode = .highQualityFormat
       options.isNetworkAccessAllowed = true
       options.isSynchronous = false
       options.resizeMode = .fast
+      options.version = .current
 
       var requestId: PHImageRequestID = PHInvalidImageRequestID
       requestId = PHImageManager.default().requestImage(
@@ -569,9 +574,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         contentMode: .aspectFill,
         options: options
       ) { image, info in
-        // Skip degraded (placeholder) images — wait for the full-quality callback
-        let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
-        if isDegraded { return }
+        // 毎回同じ写真が読めない問題対策: degraded（iCloudプレースホルダ）も受け入れて表示する
         defer { sem.signal() }
         guard let image = image,
               let data = image.jpegData(compressionQuality: quality) else { return }
@@ -589,17 +592,18 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         PHImageManager.default().cancelImageRequest(requestId)
       }
 
-      // 2nd attempt: local-only fastFormat (accept degraded images as fallback)
+      // 2nd attempt: fastFormat + network (iCloud でプレースホルダだけでも取得)
       if resultURL == nil {
         let sem2 = DispatchSemaphore(value: 0)
         let retryOptions = PHImageRequestOptions()
         retryOptions.deliveryMode = .fastFormat
-        retryOptions.isNetworkAccessAllowed = false
+        retryOptions.isNetworkAccessAllowed = true
         retryOptions.isSynchronous = false
         retryOptions.resizeMode = .fast
+        retryOptions.version = .current
 
-        var retryRequestId: PHImageRequestID = PHInvalidImageRequestID
-        retryRequestId = PHImageManager.default().requestImage(
+        var retryRequestId2: PHImageRequestID = PHInvalidImageRequestID
+        retryRequestId2 = PHImageManager.default().requestImage(
           for: asset,
           targetSize: targetSize,
           contentMode: .aspectFill,
@@ -607,7 +611,6 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         ) { image, info in
           guard let image = image,
                 let data = image.jpegData(compressionQuality: quality) else {
-            // No image at all — signal so we don't hang
             let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
             if !isDegraded { sem2.signal() }
             return
@@ -618,13 +621,51 @@ class PhotoSimilarityScanner: RCTEventEmitter {
           } catch {}
           sem2.signal()
         }
-
-        let waitResult2 = sem2.wait(timeout: .now() + 5.0)
-        if waitResult2 == .timedOut {
-          PHImageManager.default().cancelImageRequest(retryRequestId)
+        _ = sem2.wait(timeout: .now() + 8.0)
+        if resultURL == nil {
+          PHImageManager.default().cancelImageRequest(retryRequestId2)
         }
       }
 
+      // 3rd attempt: local-only fastFormat
+      if resultURL == nil {
+        let sem3 = DispatchSemaphore(value: 0)
+        let localOptions = PHImageRequestOptions()
+        localOptions.deliveryMode = .fastFormat
+        localOptions.isNetworkAccessAllowed = false
+        localOptions.isSynchronous = false
+        localOptions.resizeMode = .fast
+        localOptions.version = .current
+
+        var retryRequestId3: PHImageRequestID = PHInvalidImageRequestID
+        retryRequestId3 = PHImageManager.default().requestImage(
+          for: asset,
+          targetSize: targetSize,
+          contentMode: .aspectFill,
+          options: localOptions
+        ) { image, info in
+          guard let image = image,
+                let data = image.jpegData(compressionQuality: quality) else {
+            let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
+            if !isDegraded { sem3.signal() }
+            return
+          }
+          do {
+            try data.write(to: fileURL, options: .atomic)
+            resultURL = fileURL.absoluteString
+          } catch {}
+          sem3.signal()
+        }
+
+        let waitResult3 = sem3.wait(timeout: .now() + 5.0)
+        if waitResult3 == .timedOut {
+          PHImageManager.default().cancelImageRequest(retryRequestId3)
+        }
+      }
+
+      if resultURL == nil {
+        print("[SuteSha] thumb: failed after retry id=\(assetId.prefix(40))...")
+      }
       completion(resultURL)
     }
   }

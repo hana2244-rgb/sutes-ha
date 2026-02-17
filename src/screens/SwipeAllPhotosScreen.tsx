@@ -256,12 +256,11 @@ export function SwipeAllPhotosScreen() {
     }
 
     (async () => {
-      for (const photo of toLoad) {
-        const uri = await getPreviewImage(photo.id);
-        if (uri) {
-          previewUrisRef.current[photo.id] = uri;
-        }
-      }
+      const results = await Promise.all(toLoad.map((photo) => getPreviewImage(photo.id)));
+      toLoad.forEach((photo, i) => {
+        const uri = results[i];
+        if (uri) previewUrisRef.current[photo.id] = uri;
+      });
       setPreviewUris({ ...previewUrisRef.current });
     })();
   }, [currentIndex, phase, loading, isNative]);
@@ -271,17 +270,32 @@ export function SwipeAllPhotosScreen() {
     const ids = Array.from(deleteIdsRef.current);
     setReviewDeleteIds(ids);
     setPhase('review');
-    // Load thumbnails sequentially in batches to avoid OOM
+    // サムネイルを早く見せる: まず先頭だけ即取得 → 残りを並列バッチで取得
     if (isNative && ids.length > 0) {
+      const FIRST_BATCH = 24;
+      const BATCH_SIZE = 40;
+      const PARALLEL_BATCHES = 3;
       (async () => {
-        for (let i = 0; i < ids.length; i += 50) {
-          try {
-            const batch = ids.slice(i, i + 50);
-            const thumbs = await getThumbnailURLs(batch, REVIEW_THUMB_SIZE * 2, REVIEW_THUMB_SIZE * 2);
-            setReviewThumbUris((prev) => ({ ...prev, ...thumbs }));
-          } catch (e) {
-            console.warn('[SwipeAll] thumb batch failed', e);
+        try {
+          const first = ids.slice(0, FIRST_BATCH);
+          const firstThumbs = await getThumbnailURLs(first, REVIEW_THUMB_SIZE * 2, REVIEW_THUMB_SIZE * 2);
+          setReviewThumbUris((prev) => ({ ...prev, ...firstThumbs }));
+          for (let i = FIRST_BATCH; i < ids.length; i += BATCH_SIZE * PARALLEL_BATCHES) {
+            const promises: Promise<Record<string, string>>[] = [];
+            for (let j = 0; j < PARALLEL_BATCHES; j++) {
+              const start = i + j * BATCH_SIZE;
+              if (start >= ids.length) break;
+              const batch = ids.slice(start, start + BATCH_SIZE);
+              promises.push(getThumbnailURLs(batch, REVIEW_THUMB_SIZE * 2, REVIEW_THUMB_SIZE * 2));
+            }
+            const results = await Promise.all(promises);
+            const merged = Object.assign({}, ...results);
+            if (Object.keys(merged).length > 0) {
+              setReviewThumbUris((prev) => ({ ...prev, ...merged }));
+            }
           }
+        } catch (e) {
+          console.warn('[SwipeAll] thumb batch failed', e);
         }
       })();
     }
@@ -463,25 +477,40 @@ export function SwipeAllPhotosScreen() {
     if (!isNative) return;
 
     (async () => {
-      // Load all remaining pages first so the gallery shows every photo
+      // 残りページを読みつつ、先に表示する分のサムネイルを先行取得
+      const GALLERY_FIRST_BATCH = 48;
+      const GALLERY_BATCH_SIZE = 80;
+      const GALLERY_PARALLEL = 3;
+
       while (photosRef.current.length < totalRef.current) {
         if (loadingMoreRef.current) {
-          // Another load is in progress — wait briefly and retry
           await new Promise((r) => setTimeout(r, 100));
           continue;
         }
         await loadPage(photosRef.current.length);
       }
 
-      // Then load thumbnails in batches
       const photos = photosRef.current;
-      for (let i = 0; i < photos.length; i += 100) {
-        const batch = photos.slice(i, i + 100).map((p) => p.id);
-        try {
-          const thumbs = await getThumbnailURLs(batch, GALLERY_THUMB_SIZE * 2, GALLERY_THUMB_SIZE * 2);
-          setGalleryThumbUris((prev) => ({ ...prev, ...thumbs }));
-        } catch {}
-      }
+      const photoIds = photos.map((p) => p.id);
+      try {
+        const first = photoIds.slice(0, GALLERY_FIRST_BATCH);
+        const firstThumbs = await getThumbnailURLs(first, GALLERY_THUMB_SIZE * 2, GALLERY_THUMB_SIZE * 2);
+        setGalleryThumbUris((prev) => ({ ...prev, ...firstThumbs }));
+        for (let i = GALLERY_FIRST_BATCH; i < photoIds.length; i += GALLERY_BATCH_SIZE * GALLERY_PARALLEL) {
+          const promises: Promise<Record<string, string>>[] = [];
+          for (let j = 0; j < GALLERY_PARALLEL; j++) {
+            const start = i + j * GALLERY_BATCH_SIZE;
+            if (start >= photoIds.length) break;
+            const batch = photoIds.slice(start, start + GALLERY_BATCH_SIZE);
+            promises.push(getThumbnailURLs(batch, GALLERY_THUMB_SIZE * 2, GALLERY_THUMB_SIZE * 2));
+          }
+          const results = await Promise.all(promises);
+          const merged = Object.assign({}, ...results);
+          if (Object.keys(merged).length > 0) {
+            setGalleryThumbUris((prev) => ({ ...prev, ...merged }));
+          }
+        }
+      } catch {}
     })();
 
     // Scroll to current position after modal opens

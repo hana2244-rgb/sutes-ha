@@ -336,6 +336,10 @@ export function ScanScreen() {
           onPress: async () => {
             const index = firstVisibleIndexRef.current;
             try {
+              // スキャン中なら先にネイティブを停止（二重 runScan によるクラッシュ防止）
+              if (scanState === 'scanning') {
+                await pauseScan();
+              }
               await AsyncStorage.setItem(RESUME_FROM_GROUP_INDEX_KEY, String(index));
               await saveCurrentState();
 
@@ -365,7 +369,7 @@ export function ScanScreen() {
         },
       ]
     );
-  }, [groups, hiddenFullyKeptGroupIds, setHasSeenOnboarding, t]);
+  }, [groups, hiddenFullyKeptGroupIds, scanState, pauseScan, setHasSeenOnboarding, t]);
 
   // 位置復元: 保存済みインデックスを filtered リスト長でキャップしてスクロール（隠しID読み込み後）
   useEffect(() => {
