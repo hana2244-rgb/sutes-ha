@@ -4,7 +4,8 @@
       "Bash(npx tsc:*)",
       "Bash(curl:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

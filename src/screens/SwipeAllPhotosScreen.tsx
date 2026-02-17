@@ -275,7 +275,7 @@ export function SwipeAllPhotosScreen() {
       const FIRST_BATCH = 12;
       const BATCH_SIZE = 32;
       const PARALLEL_BATCHES = 5;
-      const thumbSize = Math.max(128, Math.round(REVIEW_THUMB_SIZE * 1.5));
+      const thumbSize = Math.round(REVIEW_THUMB_SIZE * 3);
       (async () => {
         try {
           const first = ids.slice(0, FIRST_BATCH);
@@ -481,7 +481,7 @@ export function SwipeAllPhotosScreen() {
       const GALLERY_FIRST_BATCH = 24;
       const GALLERY_BATCH_SIZE = 60;
       const GALLERY_PARALLEL = 5;
-      const galleryThumbSize = Math.max(128, Math.round(GALLERY_THUMB_SIZE * 1.5));
+      const galleryThumbSize = Math.round(GALLERY_THUMB_SIZE * 3);
 
       while (photosRef.current.length < totalRef.current) {
         if (loadingMoreRef.current) {

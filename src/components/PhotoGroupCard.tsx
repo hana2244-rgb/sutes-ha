@@ -41,8 +41,8 @@ const GRID_AVAILABLE_WIDTH = SCREEN_WIDTH - 64;
 const GRID_GAP = 8;
 const THUMBNAIL_WIDTH = GRID_AVAILABLE_WIDTH;
 const THUMBNAIL_HEIGHT = Math.round(THUMBNAIL_WIDTH * 0.55);
-const THUMB_W = Math.min(512, Math.round(THUMBNAIL_WIDTH * 2));
-const THUMB_H = Math.min(512, Math.round(THUMBNAIL_HEIGHT * 2));
+const THUMB_W = Math.round(THUMBNAIL_WIDTH * 3);
+const THUMB_H = Math.round(THUMBNAIL_HEIGHT * 3);
 
 // Module-level thumbnail cache (survives component unmount/remount)
 const thumbnailCache = new Map<string, string>();

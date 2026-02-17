@@ -244,15 +244,13 @@ export function usePhotoScanner() {
       useAppStore.getState().setGroups([]);
       useAppStore.getState().setHasPartialScan(false);
       useAppStore.getState().setScanState('idle');
-      useAppStore.getState().addToast({
-        emoji: '🧹',
-        text: t('scanner.cacheCleared'),
-        duration: 2000,
-      });
+      // キャッシュクリア後にアプリを再起動
+      const RNRestart = require('react-native-restart').default;
+      RNRestart.restart();
     } catch (error) {
       console.error('[Scanner] Clear cache failed:', error);
     }
-  }, [t]);
+  }, []);
 
   return {
     scanState,

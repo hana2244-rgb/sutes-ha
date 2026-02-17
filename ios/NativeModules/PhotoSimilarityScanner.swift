@@ -31,6 +31,14 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   private var thermalObserver: NSObjectProtocol?
   /// スキャン実行を直列化し、二重 runScan によるクラッシュを防止
   private let scanExecutionQueue = DispatchQueue(label: "sutesho.scan.execution")
+  /// iOS 写真アプリと同様の先読みキャッシュマネージャー
+  private let cachingManager = PHCachingImageManager()
+  /// 現在プリキャッシュ中のアセット（stopCaching 用）
+  private var cachedAssets: [PHAsset] = []
+  private var cachedTargetSize: CGSize = .zero
+
+  /// サムネイルキャッシュのバージョン。サイズや品質を変えたらインクリメントする
+  private static let thumbCacheVersion = 2
 
   override init() {
     super.init()
@@ -42,11 +50,31 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       self.cacheURL = cacheDir.appendingPathComponent("sutesho_featureprint_cache.dat")
       self.progressFileURL = cacheDir.appendingPathComponent("sutesho_scan_progress.json")
       self.foundGroupsFileURL = cacheDir.appendingPathComponent("sutesho_found_groups.json")
-      let thumbDirURL = cacheDir.appendingPathComponent("sutesho_thumbs")
+
+      // バージョン付きサムネイルディレクトリ（旧バージョンは自動削除）
+      let thumbDirName = "sutesho_thumbs_v\(Self.thumbCacheVersion)"
+      let thumbDirURL = cacheDir.appendingPathComponent(thumbDirName)
       try? FileManager.default.createDirectory(at: thumbDirURL, withIntermediateDirectories: true)
       self.thumbDir = thumbDirURL
+
+      // 旧バージョンのサムネイルディレクトリを削除
+      Self.cleanOldThumbDirs(in: cacheDir, currentName: thumbDirName)
     }
     startThermalMonitoring()
+  }
+
+  /// sutesho_thumbs* で始まる旧ディレクトリを削除
+  private static func cleanOldThumbDirs(in cacheDir: URL, currentName: String) {
+    DispatchQueue.global(qos: .utility).async {
+      guard let contents = try? FileManager.default.contentsOfDirectory(at: cacheDir, includingPropertiesForKeys: nil) else { return }
+      for item in contents {
+        let name = item.lastPathComponent
+        if name.hasPrefix("sutesho_thumbs") && name != currentName {
+          try? FileManager.default.removeItem(at: item)
+          print("[SuteSha] deleted old thumb cache: \(name)")
+        }
+      }
+    }
   }
 
   deinit {
@@ -493,39 +521,106 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     }
   }
 
-  /// 複数アセットのサムネイルを取得（同時実行数を制限してPHImageManagerの過負荷を防ぐ）
+  /// 複数アセットのサムネイルを一括取得（PHCachingImageManager で高速化）
   @objc func getThumbnailURLs(_ assetIds: [String], width: NSNumber, height: NSNumber, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     let w = width.intValue
     let h = height.intValue
-    let lock = NSLock()
-    var result: [String: String] = [:]
+    let targetSize = CGSize(width: w, height: h)
+    let quality: CGFloat = 0.85
+
+    guard let dir = thumbDir else {
+      resolve([String: String]())
+      return
+    }
 
     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-      guard let self = self else { return }
-      let semaphore = DispatchSemaphore(value: 8) // 同時実行数（スワイプ一覧の体感速度向上）
-      let group = DispatchGroup()
+      guard let self = self else { resolve([String: String]()); return }
+
+      // 1. 全アセットを一括 fetch（個別 fetch の繰り返しを排除）
+      let fetchOptions = PHFetchOptions()
+      fetchOptions.includeAllBurstAssets = true
+      let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: assetIds, options: fetchOptions)
+      var assetMap: [String: PHAsset] = [:]
+      var assets: [PHAsset] = []
+      fetchResult.enumerateObjects { asset, _, _ in
+        assetMap[asset.localIdentifier] = asset
+        assets.append(asset)
+      }
+
+      // ディスクキャッシュ済みを先に振り分け
+      let lock = NSLock()
+      var result: [String: String] = [:]
+      var uncachedAssets: [PHAsset] = []
+      var uncachedIds: [String] = []
 
       for assetId in assetIds {
-        group.enter()
-        semaphore.wait()
-        self.exportImageToFile(assetId: assetId, targetWidth: w, targetHeight: h, prefix: "t", quality: 0.85) { url in
-          lock.lock()
-          if let u = url { result[assetId] = u }
-          lock.unlock()
-          semaphore.signal()
-          group.leave()
+        let safeId = assetId.replacingOccurrences(of: "/", with: "_")
+        let fileURL = dir.appendingPathComponent("t_\(safeId)_\(w)x\(h).jpg")
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+          result[assetId] = fileURL.absoluteString
+        } else if let asset = assetMap[assetId] {
+          uncachedAssets.append(asset)
+          uncachedIds.append(assetId)
         }
       }
 
-      group.notify(queue: .main) {
-        resolve(result)
+      if uncachedAssets.isEmpty {
+        DispatchQueue.main.async { resolve(result) }
+        return
       }
+
+      // 2. PHCachingImageManager でプリキャッシュ（iOS 写真アプリと同じ技術）
+      let cacheOptions = PHImageRequestOptions()
+      cacheOptions.deliveryMode = .opportunistic
+      cacheOptions.resizeMode = .fast
+      cacheOptions.isNetworkAccessAllowed = true
+      self.cachingManager.startCachingImages(for: uncachedAssets, targetSize: targetSize, contentMode: .aspectFill, options: cacheOptions)
+
+      // 3. プリキャッシュ済み画像を取得してファイルに書き出し
+      let group = DispatchGroup()
+      let semaphore = DispatchSemaphore(value: 6)
+
+      for (index, asset) in uncachedAssets.enumerated() {
+        let assetId = uncachedIds[index]
+        group.enter()
+        semaphore.wait()
+
+        let safeId = assetId.replacingOccurrences(of: "/", with: "_")
+        let fileURL = dir.appendingPathComponent("t_\(safeId)_\(w)x\(h).jpg")
+
+        let reqOptions = PHImageRequestOptions()
+        reqOptions.deliveryMode = .highQualityFormat
+        reqOptions.isNetworkAccessAllowed = true
+        reqOptions.isSynchronous = true
+        reqOptions.resizeMode = .exact
+
+        self.cachingManager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: reqOptions) { image, _ in
+          defer {
+            semaphore.signal()
+            group.leave()
+          }
+          guard let image = image, let data = self.imageToData(image, quality: quality) else { return }
+          do {
+            try data.write(to: fileURL, options: .atomic)
+            lock.lock()
+            result[assetId] = fileURL.absoluteString
+            lock.unlock()
+          } catch {}
+        }
+      }
+
+      group.wait()
+
+      // 4. プリキャッシュを停止してメモリ解放
+      self.cachingManager.stopCachingImages(for: uncachedAssets, targetSize: targetSize, contentMode: .aspectFill, options: cacheOptions)
+
+      DispatchQueue.main.async { resolve(result) }
     }
   }
 
-  /// スワイププレビュー用 1500x1500 の実画像 file:// URL
+  /// スワイププレビュー用の実画像 file:// URL
   @objc func getPreviewImage(_ assetId: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    exportImageToFile(assetId: assetId, targetWidth: 1500, targetHeight: 1500, prefix: "p", quality: 0.85) { url in
+    exportImageToFile(assetId: assetId, targetWidth: 2000, targetHeight: 2000, prefix: "p", quality: 0.92) { url in
       resolve(url ?? NSNull())
     }
   }
@@ -579,7 +674,10 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       return
     }
 
-    let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
+    // バースト写真の非代表アセットも取得できるよう includeAllBurstAssets を有効化
+    let fetchOptions = PHFetchOptions()
+    fetchOptions.includeAllBurstAssets = true
+    let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: fetchOptions)
     guard let asset = fetchResult.firstObject else {
       print("[SuteSha] thumb: asset not found id=\(assetId.prefix(40))...")
       completion(nil)
@@ -592,21 +690,24 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       guard let self = self else { completion(nil); return }
       var resultURL: String?
 
-      // 高速表示: fastFormat を短タイムアウトで試し、すぐ返せるなら即返す（一覧の体感速度向上）
+      // 高速表示: opportunistic で高品質を即座に返す（fastFormat は低解像度すぎるため使わない）
       let fastSem = DispatchSemaphore(value: 0)
       let fastOptions = PHImageRequestOptions()
-      fastOptions.deliveryMode = .fastFormat
+      fastOptions.deliveryMode = .opportunistic
       fastOptions.isNetworkAccessAllowed = true
-      fastOptions.resizeMode = .fast
+      fastOptions.resizeMode = .exact
       fastOptions.version = .current
       var fastId: PHImageRequestID = PHInvalidImageRequestID
-      fastId = PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: fastOptions) { image, _ in
+      fastId = PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: fastOptions) { image, info in
+        // opportunistic は degraded コールバックを先に返す場合があるが、非 degraded の最終画像を待つ
+        let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
+        if isDegraded { return }
         defer { fastSem.signal() }
         guard let image = image, let data = self.imageToData(image, quality: quality) else { return }
         try? data.write(to: fileURL, options: .atomic)
         resultURL = fileURL.absoluteString
       }
-      if fastSem.wait(timeout: .now() + 1.5) == .timedOut {
+      if fastSem.wait(timeout: .now() + 3.0) == .timedOut {
         PHImageManager.default().cancelImageRequest(fastId)
       }
       if resultURL != nil {
@@ -620,7 +721,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       options.deliveryMode = .highQualityFormat
       options.isNetworkAccessAllowed = true
       options.isSynchronous = false
-      options.resizeMode = .fast
+      options.resizeMode = .exact
       options.version = .current
 
       var requestId: PHImageRequestID = PHInvalidImageRequestID
