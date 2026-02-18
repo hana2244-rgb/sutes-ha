@@ -1,15 +1,10 @@
 // ============================================================
-// 捨て写 - AdMob 広告ユニットID
+// 捨て写 - 広告ユニットID（AdMob 無効時はスタブ）
 // ============================================================
+// 再実装時は docs/ads_backup/adConfig.ts を復元し、react-native-google-mobile-ads を追加すること
 
-import { TestIds } from 'react-native-google-mobile-ads';
+/** バナー広告ユニットID（未使用） */
+export const BANNER_AD_UNIT_ID = '';
 
-/** バナー広告ユニットID（常に画面下部） */
-export const BANNER_AD_UNIT_ID = __DEV__
-  ? TestIds.ADAPTIVE_BANNER
-  : 'ca-app-pub-4182152923139643/8961635530';
-
-/** リワード広告ユニットID（まとめて削除時） */
-export const REWARDED_AD_UNIT_ID = __DEV__
-  ? TestIds.REWARDED
-  : 'ca-app-pub-4182152923139643/9272474760';
+/** リワード広告ユニットID（未使用） */
+export const REWARDED_AD_UNIT_ID = '';
