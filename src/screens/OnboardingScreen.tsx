@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { theme } from '../theme';
 import { ActionButton } from '../components';
 import { useAppStore } from '../store';
-import { ONBOARDING_SEEN_KEY, SWIPE_PROGRESS_KEY, RESUME_FROM_GROUP_INDEX_KEY } from '../constants/storageKeys';
+import { SWIPE_PROGRESS_KEY } from '../constants/storageKeys';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -36,13 +36,6 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
 
   const handleStart = (mode: 'swipe' | 'scan') => {
     setOnboardingSeen();
-    // 「今日はここまで」で ONBOARDING_SEEN_KEY が削除済みの場合は書き戻さない
-    // → 再起動時に必ずオンボーディングを表示するため
-    AsyncStorage.getItem(RESUME_FROM_GROUP_INDEX_KEY).then((val) => {
-      if (val == null) {
-        AsyncStorage.setItem(ONBOARDING_SEEN_KEY, 'true').catch(() => {});
-      }
-    }).catch(() => {});
     onComplete(mode);
   };
 

@@ -1,9 +1,9 @@
 // ============================================================
 // 捨てショ - Navigation
 // ============================================================
+// 再起動時は必ずオンボーディングから開始（hasSeenOnboarding は永続化しない）
 
-import React, { useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAppStore } from '../store';
@@ -11,7 +11,6 @@ import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { ScanScreen } from '../screens/ScanScreen';
 import { SwipeAllPhotosScreen } from '../screens/SwipeAllPhotosScreen';
 import { theme } from '../theme';
-import { ONBOARDING_SEEN_KEY } from '../constants/storageKeys';
 
 export type RootStackParamList = {
   Onboarding: undefined;
@@ -36,18 +35,7 @@ const navTheme = {
 export function AppNavigator() {
   const hasSeenOnboarding = useAppStore((s) => s.hasSeenOnboarding);
   const setOnboardingSeen = useAppStore((s) => s.setOnboardingSeen);
-  const setHasSeenOnboarding = useAppStore((s) => s.setHasSeenOnboarding);
   const [initialAction, setInitialAction] = useState<'swipe' | 'scan' | undefined>();
-  const [onboardingLoaded, setOnboardingLoaded] = useState(false);
-
-  useEffect(() => {
-    AsyncStorage.getItem(ONBOARDING_SEEN_KEY).then((val) => {
-      setHasSeenOnboarding(val === 'true');
-      setOnboardingLoaded(true);
-    });
-  }, [setHasSeenOnboarding]);
-
-  if (!onboardingLoaded) return null;
 
   if (!hasSeenOnboarding) {
     return (

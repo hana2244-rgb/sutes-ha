@@ -46,7 +46,7 @@ import {
 } from '../native/PhotoSimilarityScanner';
 import { useAppStore } from '../store';
 import type { PhotoAsset } from '../types';
-import { ONBOARDING_SEEN_KEY, SWIPE_PROGRESS_KEY } from '../constants/storageKeys';
+import { SWIPE_PROGRESS_KEY } from '../constants/storageKeys';
 import { useRewardedAdContext } from '../ads/RewardedAdContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -59,6 +59,9 @@ const REVIEW_THUMB_SIZE = (SCREEN_WIDTH - 16 * 2 - 6 * 3) / 4;
 const GALLERY_COLUMNS = 4;
 const GALLERY_GAP = 2;
 const GALLERY_THUMB_SIZE = (SCREEN_WIDTH - GALLERY_GAP * (GALLERY_COLUMNS - 1)) / GALLERY_COLUMNS;
+
+/** スワイプ一覧のキャッシュ（画面離脱時に保存、再表示時に即復元） */
+let swipeListCache: { assets: PhotoAsset[]; total: number } | null = null;
 
 type Phase = 'swiping' | 'review';
 type HistoryEntry = { index: number; action: 'keep' | 'delete' | 'skip' };
@@ -186,7 +189,7 @@ export function SwipeAllPhotosScreen() {
     } catch {}
   }, []);
 
-  // Initial load
+  // Initial load（キャッシュがあれば即表示、なければ Native から取得）
   useEffect(() => {
     (async () => {
       if (!isNative) {
@@ -200,15 +203,35 @@ export function SwipeAllPhotosScreen() {
         navigation.goBack();
         return;
       }
+      // キャッシュがあれば即復元して表示
+      if (swipeListCache && swipeListCache.assets.length > 0) {
+        photosRef.current = [...swipeListCache.assets];
+        totalRef.current = swipeListCache.total;
+        await restoreProgress();
+        forceRender();
+        setLoading(false);
+        return;
+      }
       const resumeIndex = await restoreProgress();
-      // Load enough pages to cover the resume index
       const pagesNeeded = Math.max(1, Math.ceil((resumeIndex + PAGE_SIZE) / PAGE_SIZE));
       for (let i = 0; i < pagesNeeded; i++) {
         await loadPage(i * PAGE_SIZE);
       }
+      if (photosRef.current.length > 0) {
+        swipeListCache = { assets: [...photosRef.current], total: totalRef.current };
+      }
       setLoading(false);
     })();
   }, []);
+
+  // 画面離脱時に一覧をキャッシュ（次回起動時に即表示するため）
+  useEffect(() => {
+    return () => {
+      if (isNative && photosRef.current.length > 0) {
+        swipeListCache = { assets: [...photosRef.current], total: totalRef.current };
+      }
+    };
+  }, [isNative]);
 
   // Prefetch next pages when approaching the end
   useEffect(() => {
@@ -462,7 +485,6 @@ export function SwipeAllPhotosScreen() {
   const handleFinishForNow = useCallback(async () => {
     await saveProgress();
     if (deleteIdsRef.current.size === 0) {
-      await AsyncStorage.removeItem(ONBOARDING_SEEN_KEY).catch(() => {});
       setHasSeenOnboarding(false);
       return;
     }
@@ -563,7 +585,6 @@ export function SwipeAllPhotosScreen() {
     deleteIdsRef.current.clear();
     setDeleteCount(0);
     await saveProgress();
-    await AsyncStorage.removeItem(ONBOARDING_SEEN_KEY).catch(() => {});
     setHasSeenOnboarding(false);
   }, [saveProgress, setHasSeenOnboarding]);
 
@@ -613,8 +634,8 @@ export function SwipeAllPhotosScreen() {
                   subtext: t('swipe.deleteFreed', { size: freedMB }),
                   duration: 3000,
                 });
+                swipeListCache = null;
                 await clearProgress();
-                await AsyncStorage.removeItem(ONBOARDING_SEEN_KEY).catch(() => {});
                 setHasSeenOnboarding(false);
                 return;
               }
