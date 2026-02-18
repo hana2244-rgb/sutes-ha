@@ -62,6 +62,8 @@ const GALLERY_THUMB_SIZE = (SCREEN_WIDTH - GALLERY_GAP * (GALLERY_COLUMNS - 1)) 
 
 /** スワイプ一覧のキャッシュ（画面離脱時に保存、再表示時に即復元） */
 let swipeListCache: { assets: PhotoAsset[]; total: number } | null = null;
+/** 削除実行でキャッシュを無効化した直後は、離脱時に上書き保存しない */
+let swipeListCacheInvalidated = false;
 
 type Phase = 'swiping' | 'review';
 type HistoryEntry = { index: number; action: 'keep' | 'delete' | 'skip' };
@@ -224,9 +226,13 @@ export function SwipeAllPhotosScreen() {
     })();
   }, []);
 
-  // 画面離脱時に一覧をキャッシュ（次回起動時に即表示するため）
+  // 画面離脱時に一覧をキャッシュ（削除で無効化した直後は保存しない）
   useEffect(() => {
     return () => {
+      if (swipeListCacheInvalidated) {
+        swipeListCacheInvalidated = false;
+        return;
+      }
       if (isNative && photosRef.current.length > 0) {
         swipeListCache = { assets: [...photosRef.current], total: totalRef.current };
       }
@@ -635,17 +641,18 @@ export function SwipeAllPhotosScreen() {
                   duration: 3000,
                 });
                 swipeListCache = null;
+                swipeListCacheInvalidated = true;
                 await clearProgress();
                 setHasSeenOnboarding(false);
                 return;
               }
               addToast({ emoji: '❌', text: t('scanner.deleteFailed'), subtext: result.error });
+              return;
             } catch (e) {
               if (__DEV__) console.error('[SwipeAll] delete failed', e);
               addToast({ emoji: '❌', text: t('scanner.deleteError') });
+              return;
             }
-            await clearProgress();
-            navigation.goBack();
           },
         },
       ]
