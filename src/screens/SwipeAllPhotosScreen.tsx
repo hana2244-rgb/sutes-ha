@@ -152,6 +152,9 @@ export function SwipeAllPhotosScreen() {
     forceRender();
   }, []);
 
+  // 保存済みの再開位置アセットID（写真ロード後にインデックスを補正するために保持）
+  const resumeAssetIdRef = useRef<string | null>(null);
+
   // Restore progress from AsyncStorage
   const restoreProgress = useCallback(async () => {
     try {
@@ -159,10 +162,12 @@ export function SwipeAllPhotosScreen() {
       if (saved) {
         const data = JSON.parse(saved) as {
           currentIndex: number;
+          resumeAssetId?: string;
           deleteIds: string[];
           skipIds: string[];
         };
         setCurrentIndex(data.currentIndex);
+        resumeAssetIdRef.current = data.resumeAssetId ?? null;
         deleteIdsRef.current = new Set(data.deleteIds);
         skipIdsRef.current = new Set(data.skipIds);
         setDeleteCount(data.deleteIds.length);
@@ -175,8 +180,11 @@ export function SwipeAllPhotosScreen() {
   // Save progress to AsyncStorage
   const saveProgress = useCallback(async () => {
     try {
+      // 現在位置の写真IDを保存（削除後にリストが変わってもIDで位置を特定できるようにする）
+      const resumeAsset = photosRef.current[currentIndexRef.current];
       const data = {
         currentIndex: currentIndexRef.current,
+        resumeAssetId: resumeAsset?.id ?? undefined,
         deleteIds: Array.from(deleteIdsRef.current),
         skipIds: Array.from(skipIdsRef.current),
       };
@@ -210,6 +218,14 @@ export function SwipeAllPhotosScreen() {
         photosRef.current = [...swipeListCache.assets];
         totalRef.current = swipeListCache.total;
         await restoreProgress();
+        // アセットIDでインデックスを補正（削除後のリスト変更に対応）
+        if (resumeAssetIdRef.current) {
+          const corrected = photosRef.current.findIndex((p) => p.id === resumeAssetIdRef.current);
+          if (corrected >= 0 && corrected !== currentIndexRef.current) {
+            setCurrentIndex(corrected);
+          }
+          resumeAssetIdRef.current = null;
+        }
         forceRender();
         setLoading(false);
         return;
@@ -218,6 +234,15 @@ export function SwipeAllPhotosScreen() {
       const pagesNeeded = Math.max(1, Math.ceil((resumeIndex + PAGE_SIZE) / PAGE_SIZE));
       for (let i = 0; i < pagesNeeded; i++) {
         await loadPage(i * PAGE_SIZE);
+      }
+      // アセットIDでインデックスを補正（削除後のリスト変更に対応）
+      if (resumeAssetIdRef.current) {
+        const corrected = photosRef.current.findIndex((p) => p.id === resumeAssetIdRef.current);
+        if (corrected >= 0) {
+          setCurrentIndex(corrected);
+          currentIndexRef.current = corrected;
+        }
+        resumeAssetIdRef.current = null;
       }
       if (photosRef.current.length > 0) {
         swipeListCache = { assets: [...photosRef.current], total: totalRef.current };
@@ -618,7 +643,11 @@ export function SwipeAllPhotosScreen() {
           });
           swipeListCache = null;
           swipeListCacheInvalidated = true;
-          await clearProgress();
+          // 削除済み・スキップ済みをクリアし、現在位置を保存して次回続きから再開できるようにする
+          deleteIdsRef.current.clear();
+          skipIdsRef.current.clear();
+          setDeleteCount(0);
+          await saveProgress();
           setHasSeenOnboarding(false);
           return;
         }
