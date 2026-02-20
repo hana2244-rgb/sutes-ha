@@ -59,7 +59,14 @@
           }
         }
       ],
-      "./plugins/withPhotoSimilarityScanner"
+      "./plugins/withPhotoSimilarityScanner",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "iosAppId": "ca-app-pub-4182152923139643~3765158918",
+          "androidAppId": "ca-app-pub-4182152923139643~3765158918"
+        }
+      ]
     ],
     "extra": {
       "eas": {
