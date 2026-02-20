@@ -5,13 +5,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   initConnection,
-  getProducts,
+  fetchProducts,
   requestPurchase,
   getAvailablePurchases,
   finishTransaction,
   purchaseErrorListener,
   purchaseUpdatedListener,
-  type Product,
+  type ProductIOS,
   type Purchase,
   type PurchaseError,
 } from 'react-native-iap';
@@ -23,7 +23,7 @@ export const REMOVE_ADS_PRODUCT_ID = 'sutesho_remove_ads';
 const NORMAL_PRICE = '¥500';
 
 export function usePurchases() {
-  const [product, setProduct] = useState<Product | null>(null);
+  const [product, setProduct] = useState<ProductIOS | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const setIsAdFree = useAppStore((s) => s.setIsAdFree);
@@ -57,8 +57,10 @@ export function usePurchases() {
           if (__DEV__) console.warn('[IAP] purchase error:', err.message);
         });
 
-        const products = await getProducts({ skus: [REMOVE_ADS_PRODUCT_ID] });
-        const found = products.find((p) => p.productId === REMOVE_ADS_PRODUCT_ID);
+        const products = await fetchProducts({ skus: [REMOVE_ADS_PRODUCT_ID] });
+        const found = (products ?? []).find(
+          (p) => p.id === REMOVE_ADS_PRODUCT_ID
+        ) as ProductIOS | undefined;
         if (found) {
           setProduct(found);
         }
@@ -75,14 +77,17 @@ export function usePurchases() {
     };
   }, [markAdFree]);
 
-  const isSale = product != null && product.localizedPrice !== NORMAL_PRICE;
+  const isSale = product != null && product.displayPrice !== NORMAL_PRICE;
 
   const purchase = useCallback(async () => {
     if (!product) return;
     setIsLoading(true);
     setError(null);
     try {
-      await requestPurchase({ sku: product.productId });
+      await requestPurchase({
+        request: { apple: { sku: product.id } },
+        type: 'in-app',
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       // ユーザーキャンセルはエラー扱いしない
