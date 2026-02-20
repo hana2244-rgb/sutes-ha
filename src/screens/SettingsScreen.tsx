@@ -102,7 +102,7 @@ export function SettingsScreen() {
                         {t('purchase.normalPrice', { price: '¥500' })}
                       </Text>
                     )}
-                    <Text style={styles.currentPrice}>{product.displayPrice}</Text>
+                    <Text style={styles.currentPrice}>{product.localizedPrice}</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.buyButton}
@@ -110,7 +110,7 @@ export function SettingsScreen() {
                     activeOpacity={0.8}
                   >
                     <Text style={styles.buyButtonText}>
-                      {t('purchase.buyButton', { price: product.displayPrice })}
+                      {t('purchase.buyButton', { price: product.localizedPrice })}
                     </Text>
                   </TouchableOpacity>
                 </>
