@@ -182,6 +182,22 @@ const en = {
     previewKeep: 'Keep',
     previewDelete: 'Delete',
   },
+  purchase: {
+    title: 'Settings',
+    removeAds: 'Remove All Ads',
+    saleBadge: 'Sale',
+    normalPrice: 'Regular {{price}}',
+    salePrice: 'Special Price',
+    buyButton: 'Buy ({{price}})',
+    restoreButton: 'Restore Purchase',
+    alreadyOwned: 'Purchased ✅ Ads are hidden',
+    success: 'Ads removed!',
+    error: 'Purchase failed. Please try again.',
+    restoreNone: 'No purchases found to restore',
+    loading: 'Loading...',
+    appVersion: 'Version',
+    appInfoLabel: 'App Info',
+  },
 } as const;
 
 export default en;

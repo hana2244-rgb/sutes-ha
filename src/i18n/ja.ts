@@ -182,6 +182,22 @@ const ja = {
     previewKeep: '残す',
     previewDelete: '削除',
   },
+  purchase: {
+    title: '設定',
+    removeAds: '広告を完全に削除',
+    saleBadge: 'セール中',
+    normalPrice: '通常{{price}}',
+    salePrice: '特別価格',
+    buyButton: '購入する（{{price}}）',
+    restoreButton: '購入を復元',
+    alreadyOwned: '購入済み ✅ 広告は非表示です',
+    success: '広告を削除しました！',
+    error: '購入に失敗しました。もう一度お試しください',
+    restoreNone: '復元できる購入が見つかりませんでした',
+    loading: '読み込み中...',
+    appVersion: 'バージョン',
+    appInfoLabel: 'アプリ情報',
+  },
 } as const;
 
 export default ja;

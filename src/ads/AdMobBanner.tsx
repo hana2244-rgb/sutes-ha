@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import { BANNER_AD_UNIT_ID } from './adConfig';
 import { AdsSdkReadyContext } from './AdsSdkReadyContext';
+import { useAppStore } from '../store';
 
 const MAX_RETRIES = 5;
 const RETRY_DELAYS = [3000, 6000, 15000, 30000, 60000];
@@ -15,6 +16,8 @@ const RETRY_DELAYS = [3000, 6000, 15000, 30000, 60000];
 export function AdMobBanner() {
   const insets = useSafeAreaInsets();
   const adsSdkReady = useContext(AdsSdkReadyContext);
+  const isAdFree = useAppStore((s) => s.isAdFree);
+  if (isAdFree) return null;
   const [adKey, setAdKey] = useState(0);
   const retryCount = useRef(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

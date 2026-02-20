@@ -94,6 +94,7 @@ export interface AppState {
   toasts: ToastMessage[];
   hasSeenOnboarding: boolean;
   hasPartialScan: boolean;
+  isAdFree: boolean;
 
   setScanState: (state: ScanState) => void;
   setScanProgress: (progress: ScanProgress | null) => void;
@@ -109,4 +110,5 @@ export interface AppState {
   setOnboardingSeen: () => void;
   setHasSeenOnboarding: (value: boolean) => void;
   setHasPartialScan: (has: boolean) => void;
+  setIsAdFree: (value: boolean) => void;
 }

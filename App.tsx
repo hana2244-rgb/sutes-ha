@@ -15,11 +15,16 @@ import { ToastContainer } from './src/components/Toast';
 import { AdsSdkReadyContext } from './src/ads/AdsSdkReadyContext';
 import { RewardedAdProvider } from './src/ads/RewardedAdContext';
 import { AdMobBanner } from './src/ads/AdMobBanner';
+import { initAdFreeStatus } from './src/store';
 
 const INIT_TIMEOUT_MS = 5000;
 
 export default function App() {
   const [adsSdkReady, setAdsSdkReady] = useState(false);
+
+  useEffect(() => {
+    initAdFreeStatus();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

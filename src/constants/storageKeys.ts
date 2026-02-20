@@ -8,3 +8,5 @@ export const RESUME_FROM_GROUP_INDEX_KEY = 'sutesho_resume_from_group_index';
 export const HIDDEN_FULLY_KEPT_GROUP_IDS_KEY = 'sutesho_hidden_fully_kept_group_ids';
 /** オンボーディングを一度見たか（永続化） */
 export const ONBOARDING_SEEN_KEY = 'sutesho_onboarding_seen';
+/** 広告削除購入済みフラグ */
+export const AD_FREE_KEY = 'sutesho_ad_free';

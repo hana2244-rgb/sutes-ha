@@ -18,6 +18,7 @@ import {
 } from 'react-native-google-mobile-ads';
 import { REWARDED_AD_UNIT_ID } from './adConfig';
 import { AdsSdkReadyContext } from './AdsSdkReadyContext';
+import { useAppStore } from '../store';
 
 type RewardedAdContextValue = {
   requestShowRewardedAd: () => Promise<boolean>;
@@ -34,6 +35,7 @@ const TIMEOUT_MS = 15000;
 
 export function RewardedAdProvider({ children }: { children: React.ReactNode }) {
   const adsSdkReady = useContext(AdsSdkReadyContext);
+  const isAdFree = useAppStore((s) => s.isAdFree);
   const adRef = useRef<RewardedAd | null>(null);
   const isLoadedRef = useRef(false);
   const pendingResolveRef = useRef<((v: boolean) => void) | null>(null);
@@ -121,6 +123,7 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
   }, [adsSdkReady, createAndLoad, cleanup]);
 
   const requestShowRewardedAd = useCallback((): Promise<boolean> => {
+    if (isAdFree) return Promise.resolve(true);
     return new Promise((resolve) => {
       earnedRef.current = false;
       pendingResolveRef.current = resolve;
@@ -146,7 +149,7 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
         createAndLoad();
       }
     });
-  }, [createAndLoad]);
+  }, [createAndLoad, isAdFree]);
 
   return (
     <RewardedAdContext.Provider value={{ requestShowRewardedAd }}>

@@ -3,7 +3,9 @@
 // ============================================================
 
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AppState, SimilarGroup, ToastMessage } from '../types';
+import { AD_FREE_KEY } from '../constants/storageKeys';
 
 let toastCounter = 0;
 
@@ -17,6 +19,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   toasts: [],
   hasSeenOnboarding: false,
   hasPartialScan: false,
+  isAdFree: false,
 
   setScanState: (scanState) => set({ scanState }),
 
@@ -91,4 +94,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   setHasSeenOnboarding: (value: boolean) => set({ hasSeenOnboarding: value }),
 
   setHasPartialScan: (hasPartialScan) => set({ hasPartialScan }),
+
+  setIsAdFree: (isAdFree: boolean) => set({ isAdFree }),
 }));
+
+/** アプリ起動時に AsyncStorage から isAdFree を復元する */
+export async function initAdFreeStatus(): Promise<void> {
+  try {
+    const value = await AsyncStorage.getItem(AD_FREE_KEY);
+    if (value === 'true') {
+      useAppStore.getState().setIsAdFree(true);
+    }
+  } catch {
+    // 読み込み失敗は無視
+  }
+}

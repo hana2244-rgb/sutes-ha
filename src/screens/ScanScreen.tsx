@@ -452,6 +452,13 @@ export function ScanScreen() {
             {t('scan.photoCountBadge', { count: photoCount })}
           </Text>
         </View>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => navigation.navigate('Settings')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.settingsButtonText}>⚙️</Text>
+        </TouchableOpacity>
       </Animated.View>
 
       <SimilaritySlider
@@ -737,6 +744,13 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.secondary,
     fontWeight: '600',
+  },
+  settingsButton: {
+    marginLeft: 'auto',
+    padding: 4,
+  },
+  settingsButtonText: {
+    fontSize: 22,
   },
   todayDoneContainer: {
     position: 'absolute',

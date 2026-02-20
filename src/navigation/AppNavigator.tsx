@@ -10,12 +10,14 @@ import { useAppStore } from '../store';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { ScanScreen } from '../screens/ScanScreen';
 import { SwipeAllPhotosScreen } from '../screens/SwipeAllPhotosScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { theme } from '../theme';
 
 export type RootStackParamList = {
   Onboarding: undefined;
   Scan: { initialAction?: 'swipe' | 'scan' } | undefined;
   SwipeAllPhotos: undefined;
+  Settings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -59,6 +61,11 @@ export function AppNavigator() {
           name="SwipeAllPhotos"
           component={SwipeAllPhotosScreen}
           options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{ presentation: 'modal', headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>
