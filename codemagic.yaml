@@ -34,6 +34,19 @@ workflows:
       - name: Install npm dependencies
         script: npm ci
 
+      # ビルド番号を TestFlight 最新+1 にセット（app.json → prebuild で ios/ に反映）
+      - name: Bump iOS build number
+        script: |
+          set -e
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || true)
+          if [ -n "$LATEST" ] && [ "$LATEST" -ge 0 ] 2>/dev/null; then
+            NEW=$((LATEST + 1))
+          else
+            NEW=$((19 + ${BUILD_NUMBER:-0}))
+          fi
+          echo "Setting app.json buildNumber to $NEW (latest on ASC: ${LATEST:-none})"
+          node scripts/bump-ios-build.js "$NEW"
+
       # Codemagic の Mac で毎回 prebuild して ios/ を生成（リポジトリに ios/ がなくてもビルド可能）
       - name: Prebuild iOS
         script: |
@@ -42,20 +55,6 @@ workflows:
           echo "Contents of ios/ after prebuild:"
           ls -la ios/ || true
           find ios -maxdepth 1 -name "*.xcworkspace" -type d || true
-
-      # ビルド番号を「既存 18 より大きい値」に設定（agvtool で Xcode プロジェクト全体に反映）
-      - name: Set iOS build number
-        script: |
-          cd "$CM_BUILD_DIR/ios"
-          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || true)
-          if [ -n "$LATEST" ] && [ "$LATEST" -ge 0 ] 2>/dev/null; then
-            NEW_VERSION=$(($LATEST + 1))
-          else
-            NEW_VERSION=$((19 + ${BUILD_NUMBER:-0}))
-          fi
-          echo "Setting CFBundleVersion to $NEW_VERSION (latest on ASC: ${LATEST:-none})"
-          agvtool new-version -all "$NEW_VERSION"
-          agvtool new-marketing-version -all "1.0.0" 2>/dev/null || true
 
       - name: Install CocoaPods
         script: cd ios && pod install

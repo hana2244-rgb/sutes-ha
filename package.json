@@ -15,7 +15,8 @@
     "prebuild:clean": "expo prebuild --platform ios --clean",
     "build:ios:production": "eas build --platform ios --profile production",
     "submit:ios": "eas submit --platform ios --profile production --latest",
-    "build:ios:testflight": "eas build --platform ios --profile production --auto-submit"
+    "build:ios:testflight": "eas build --platform ios --profile production --auto-submit",
+    "bump:ios": "node scripts/bump-ios-build.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
