@@ -604,13 +604,40 @@ export function SwipeAllPhotosScreen() {
     }, 0);
     const sizeMB = (totalBytes / (1024 * 1024)).toFixed(1);
 
+    // 削除実行（広告視聴後に呼ばれる）
+    const executeDelete = async () => {
+      try {
+        const result = await deleteAssets(reviewDeleteIds);
+        if (result.success) {
+          const freedMB = (result.freedBytes / (1024 * 1024)).toFixed(1);
+          addToast({
+            emoji: '🎉',
+            text: t('swipe.deleteSuccess', { count: result.deletedCount }),
+            subtext: t('swipe.deleteFreed', { size: freedMB }),
+            duration: 3000,
+          });
+          swipeListCache = null;
+          swipeListCacheInvalidated = true;
+          await clearProgress();
+          setHasSeenOnboarding(false);
+          return;
+        }
+        addToast({ emoji: '❌', text: t('scanner.deleteFailed'), subtext: result.error });
+        return;
+      } catch (e) {
+        if (__DEV__) console.error('[SwipeAll] delete failed', e);
+        addToast({ emoji: '❌', text: t('scanner.deleteError') });
+        return;
+      }
+    };
+
     Alert.alert(
       t('swipe.deleteTitle', { count: reviewDeleteIds.length }),
-      `${t('swipe.deleteMessage', { size: sizeMB })}\n\n${t('swipe.deleteAdNote')}`,
+      t('swipe.deleteMessage', { size: sizeMB }),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
-          text: t('common.delete'),
+          text: rewardedAd ? t('swipe.deleteAdButton') : t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             if (!isNative) {
@@ -619,10 +646,12 @@ export function SwipeAllPhotosScreen() {
               navigation.goBack();
               return;
             }
+            if (!rewardedAd) {
+              await executeDelete();
+              return;
+            }
             // リワード広告を表示し、視聴完了後にのみ削除を実行
-            const earned = rewardedAd
-              ? await rewardedAd.requestShowRewardedAd()
-              : true;
+            const earned = await rewardedAd.requestShowRewardedAd();
             if (!earned) {
               addToast({
                 emoji: '📺',
@@ -630,29 +659,7 @@ export function SwipeAllPhotosScreen() {
               });
               return;
             }
-            try {
-              const result = await deleteAssets(reviewDeleteIds);
-              if (result.success) {
-                const freedMB = (result.freedBytes / (1024 * 1024)).toFixed(1);
-                addToast({
-                  emoji: '🎉',
-                  text: t('swipe.deleteSuccess', { count: result.deletedCount }),
-                  subtext: t('swipe.deleteFreed', { size: freedMB }),
-                  duration: 3000,
-                });
-                swipeListCache = null;
-                swipeListCacheInvalidated = true;
-                await clearProgress();
-                setHasSeenOnboarding(false);
-                return;
-              }
-              addToast({ emoji: '❌', text: t('scanner.deleteFailed'), subtext: result.error });
-              return;
-            } catch (e) {
-              if (__DEV__) console.error('[SwipeAll] delete failed', e);
-              addToast({ emoji: '❌', text: t('scanner.deleteError') });
-              return;
-            }
+            await executeDelete();
           },
         },
       ]

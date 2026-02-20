@@ -273,22 +273,47 @@ export function ScanScreen() {
     if (allDeletableIds.length === 0) return;
 
     const sizeMB = (totalDeletable / (1024 * 1024)).toFixed(1);
-    const deleteMessage = rewardedAd
-      ? `${t('scan.batchDeleteMessage', { size: sizeMB })}\n\n${t('scan.batchDeleteAdNote')}`
-      : t('scan.batchDeleteMessage', { size: sizeMB });
+
+    // 削除実行（広告視聴後に呼ばれる）
+    const executeDelete = async () => {
+      const result = await deleteAssets(allDeletableIds);
+      if (result?.success) {
+        const count = await getPhotoCount();
+        setPhotoCount(count);
+        // 削除後、全写真に判定済みのグループを非表示にする
+        const currentGroups = useAppStore.getState().groups;
+        const toDismiss: string[] = [];
+        for (const g of currentGroups) {
+          if (g.assets.length === 0) continue;
+          const allDecided = g.assets.every((a) => g.keepAssetIds.includes(a.id));
+          if (allDecided) toDismiss.push(g.id);
+        }
+        if (toDismiss.length > 0) {
+          setDismissedGroupIds((prev) => {
+            const next = new Set(prev);
+            toDismiss.forEach((id) => next.add(id));
+            return next;
+          });
+        }
+      }
+    };
+
+    // Step 1: 削除確認ダイアログ
     Alert.alert(
       t('scan.batchDeleteTitle', { count: allDeletableIds.length }),
-      deleteMessage,
+      t('scan.batchDeleteMessage', { size: sizeMB }),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
-          text: t('common.delete'),
+          text: rewardedAd ? t('scan.batchDeleteAdButton') : t('common.delete'),
           style: 'destructive',
           onPress: async () => {
+            if (!rewardedAd) {
+              await executeDelete();
+              return;
+            }
             // リワード広告を表示し、視聴完了後にのみ削除を実行
-            const earned = rewardedAd
-              ? await rewardedAd.requestShowRewardedAd()
-              : true;
+            const earned = await rewardedAd.requestShowRewardedAd();
             if (!earned) {
               addToast({
                 emoji: '📺',
@@ -296,26 +321,7 @@ export function ScanScreen() {
               });
               return;
             }
-            const result = await deleteAssets(allDeletableIds);
-            if (result?.success) {
-              const count = await getPhotoCount();
-              setPhotoCount(count);
-              // 削除後、全写真に判定済みのグループを非表示にする
-              const currentGroups = useAppStore.getState().groups;
-              const toDismiss: string[] = [];
-              for (const g of currentGroups) {
-                if (g.assets.length === 0) continue;
-                const allDecided = g.assets.every((a) => g.keepAssetIds.includes(a.id));
-                if (allDecided) toDismiss.push(g.id);
-              }
-              if (toDismiss.length > 0) {
-                setDismissedGroupIds((prev) => {
-                  const next = new Set(prev);
-                  toDismiss.forEach((id) => next.add(id));
-                  return next;
-                });
-              }
-            }
+            await executeDelete();
           },
         },
       ]

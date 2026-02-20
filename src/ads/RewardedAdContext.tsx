@@ -66,6 +66,8 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
 
       if (pendingResolveRef.current) {
         if (__DEV__) console.log('[RewardedAd] showing (was waiting)');
+        // 広告表示開始 → ロード待ちタイムアウトをクリア（再生中に発火させない）
+        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
         ad.show();
       }
     });
@@ -135,6 +137,8 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
 
       if (isLoadedRef.current && adRef.current) {
         if (__DEV__) console.log('[RewardedAd] showing (already loaded)');
+        // 広告表示開始 → ロード待ちタイムアウトをクリア（再生中に発火させない）
+        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
         adRef.current.show();
       } else {
         if (__DEV__) console.log('[RewardedAd] not loaded, loading...');

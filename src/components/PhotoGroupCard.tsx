@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import Animated, {
   FadeInDown,
-  Layout,
+  LinearTransition,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
@@ -414,7 +414,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
   return (
     <Animated.View
       entering={FadeInDown.duration(400).springify().damping(14)}
-      layout={Layout.springify()}
+      layout={LinearTransition.duration(300)}
     >
       <Animated.View style={[styles.card, cardAnimatedStyle]}>
         <View style={styles.header}>
