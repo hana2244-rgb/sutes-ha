@@ -56,6 +56,8 @@ interface PhotoGroupCardProps {
   index: number;
   onKeepToggle: (groupId: string, assetId: string) => void;
   onDelete: (assetIds: string[]) => void;
+  /** このグループの写真を全て削除対象にする（「残す」をすべて外す） */
+  onSelectAllForDelete?: (groupId: string) => void;
 }
 
 export const PhotoGroupCard = React.memo(function PhotoGroupCard({
@@ -63,6 +65,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
   index,
   onKeepToggle,
   onDelete,
+  onSelectAllForDelete,
 }: PhotoGroupCardProps) {
   const { t } = useTranslation();
   const [thumbUris, setThumbUris] = useState<Record<string, string>>({});
@@ -173,6 +176,11 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
     },
     [group.id, onKeepToggle]
   );
+
+  const handleSelectAllForDelete = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onSelectAllForDelete?.(group.id);
+  }, [group.id, onSelectAllForDelete]);
 
   const handleDelete = useCallback(() => {
     const toDelete = hasKeep ? deletableAssets : group.assets;
@@ -427,17 +435,30 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={handleDelete}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.deleteButtonText}>
-            {hasKeep
-              ? t('group.deleteCount', { count: deletableAssets.length })
-              : t('group.deleteAllCount', { count: group.assets.length })}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {onSelectAllForDelete != null && (
+            <TouchableOpacity
+              style={styles.selectAllForDeleteButton}
+              onPress={handleSelectAllForDelete}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.selectAllForDeleteButtonText}>
+                {t('group.selectAllForDelete')}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={handleDelete}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.deleteButtonText}>
+              {hasKeep
+                ? t('group.deleteCount', { count: deletableAssets.length })
+                : t('group.deleteAllCount', { count: group.assets.length })}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.grid}>
@@ -616,6 +637,24 @@ const styles = StyleSheet.create({
   sizeText: {
     ...theme.typography.tiny,
     color: theme.colors.secondary,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  selectAllForDeleteButton: {
+    backgroundColor: theme.colors.secondarySoft,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.secondary,
+  },
+  selectAllForDeleteButtonText: {
+    ...theme.typography.tiny,
+    color: theme.colors.secondary,
+    fontWeight: '600',
   },
   deleteButton: {
     backgroundColor: theme.colors.danger,

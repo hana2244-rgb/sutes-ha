@@ -101,6 +101,7 @@ export function ScanScreen() {
   const setHasSeenOnboarding = useAppStore((s) => s.setHasSeenOnboarding);
   const addToast = useAppStore((s) => s.addToast);
   const toggleKeepAsset = useAppStore((s) => s.toggleKeepAsset);
+  const setKeepAssets = useAppStore((s) => s.setKeepAssets);
   const rewardedAd = useRewardedAdContext();
   const [photoCount, setPhotoCount] = useState<number>(0);
 
@@ -421,6 +422,11 @@ export function ScanScreen() {
   );
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 10 }).current;
 
+  const handleSelectAllForDelete = useCallback(
+    (groupId: string) => setKeepAssets(groupId, []),
+    [setKeepAssets]
+  );
+
   const renderGroup = useCallback(
     ({ item, index }: { item: SimilarGroup; index: number }) => (
       <PhotoGroupCard
@@ -428,9 +434,10 @@ export function ScanScreen() {
         index={index}
         onKeepToggle={handleKeepToggle}
         onDelete={handleGroupDelete}
+        onSelectAllForDelete={handleSelectAllForDelete}
       />
     ),
-    [handleKeepToggle, handleGroupDelete]
+    [handleKeepToggle, handleGroupDelete, handleSelectAllForDelete]
   );
 
   const ListHeader = useMemo(() => (
@@ -447,18 +454,20 @@ export function ScanScreen() {
         style={styles.titleRow}
       >
         <Text style={styles.title}>{t('scan.title')}</Text>
-        <View style={styles.titleBadge}>
-          <Text style={styles.titleBadgeText}>
-            {t('scan.photoCountBadge', { count: photoCount })}
-          </Text>
+        <View style={styles.titleRight}>
+          <View style={styles.titleBadge}>
+            <Text style={styles.titleBadgeText}>
+              {t('scan.photoCountBadge', { count: photoCount })}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => navigation.navigate('Settings')}
+            accessibilityLabel={t('purchase.title')}
+          >
+            <Text style={styles.settingsButtonText}>{t('purchase.title')}</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => navigation.navigate('Settings')}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Text style={styles.settingsButtonText}>⚙️</Text>
-        </TouchableOpacity>
       </Animated.View>
 
       <SimilaritySlider
@@ -726,11 +735,29 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
   },
   title: {
     ...theme.typography.title,
     color: theme.colors.textPrimary,
+  },
+  titleRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  settingsButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.bgCard,
+    borderWidth: 1,
+    borderColor: theme.colors.glassBorder,
+  },
+  settingsButtonText: {
+    ...theme.typography.caption,
+    color: theme.colors.secondary,
+    fontWeight: '600',
   },
   titleBadge: {
     backgroundColor: theme.colors.secondarySoft,
@@ -744,13 +771,6 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.secondary,
     fontWeight: '600',
-  },
-  settingsButton: {
-    marginLeft: 'auto',
-    padding: 4,
-  },
-  settingsButtonText: {
-    fontSize: 22,
   },
   todayDoneContainer: {
     position: 'absolute',

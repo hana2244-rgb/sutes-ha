@@ -2,8 +2,17 @@
 // 捨て写 - Onboarding Screen（ソーダグラス）
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  Dimensions,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
   FadeInDown,
@@ -11,10 +20,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { theme } from '../theme';
+import { theme, glassCard } from '../theme';
 import { ActionButton } from '../components';
 import { useAppStore } from '../store';
 import { SWIPE_PROGRESS_KEY } from '../constants/storageKeys';
+import { usePurchases } from '../purchases/usePurchases';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -26,13 +36,38 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const setOnboardingSeen = useAppStore((s) => s.setOnboardingSeen);
+  const isAdFree = useAppStore((s) => s.isAdFree);
+  const addToast = useAppStore((s) => s.addToast);
   const [hasSwipeProgress, setHasSwipeProgress] = useState(false);
+  const { product, isSale, isLoading, error, purchase, restore } = usePurchases();
 
   useEffect(() => {
     AsyncStorage.getItem(SWIPE_PROGRESS_KEY).then((val) => {
       setHasSwipeProgress(val != null);
     });
   }, []);
+
+  useEffect(() => {
+    if (error) {
+      addToast({ emoji: '⚠️', text: t('purchase.error') });
+    }
+  }, [error]);
+
+  const handlePurchase = useCallback(async () => {
+    await purchase();
+    if (useAppStore.getState().isAdFree) {
+      addToast({ emoji: '🎉', text: t('purchase.success') });
+    }
+  }, [purchase, addToast, t]);
+
+  const handleRestore = useCallback(async () => {
+    const found = await restore();
+    if (found) {
+      addToast({ emoji: '✅', text: t('purchase.success') });
+    } else {
+      addToast({ emoji: '🔍', text: t('purchase.restoreNone') });
+    }
+  }, [restore, addToast, t]);
 
   const handleStart = (mode: 'swipe' | 'scan') => {
     setOnboardingSeen();
@@ -130,6 +165,56 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               style={styles.startButton}
             />
           </View>
+        </Animated.View>
+
+        {/* 広告削除IAP */}
+        <Animated.View
+          entering={FadeInUp.delay(1100).duration(500).springify()}
+          style={styles.iapCard}
+        >
+          {isAdFree ? (
+            <Text style={styles.iapOwned}>{t('purchase.alreadyOwned')}</Text>
+          ) : (
+            <>
+              <View style={styles.iapHeader}>
+                {isSale && (
+                  <View style={styles.iapSaleBadge}>
+                    <Text style={styles.iapSaleBadgeText}>🎉 {t('purchase.saleBadge')}</Text>
+                  </View>
+                )}
+                <Text style={styles.iapTitle}>{t('purchase.removeAds')}</Text>
+              </View>
+
+              {isLoading ? (
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+              ) : product ? (
+                <View style={styles.iapActions}>
+                  <View style={styles.iapPriceRow}>
+                    {isSale && (
+                      <Text style={styles.iapNormalPrice}>
+                        {t('purchase.normalPrice', { price: '¥500' })}
+                      </Text>
+                    )}
+                    <Text style={styles.iapCurrentPrice}>{product.displayPrice}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.iapBuyButton}
+                    onPress={handlePurchase}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.iapBuyButtonText}>
+                      {t('purchase.buyButton', { price: product.displayPrice })}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleRestore} activeOpacity={0.7}>
+                    <Text style={styles.iapRestoreText}>{t('purchase.restoreButton')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <Text style={styles.iapLoadingText}>{t('purchase.loading')}</Text>
+              )}
+            </>
+          )}
         </Animated.View>
       </ScrollView>
     </View>
@@ -292,5 +377,77 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingVertical: 14,
     marginTop: 4,
+  },
+  iapCard: {
+    ...glassCard,
+    padding: 16,
+    gap: 10,
+    marginTop: 8,
+  },
+  iapOwned: {
+    ...theme.typography.caption,
+    color: theme.colors.success,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  iapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  iapSaleBadge: {
+    backgroundColor: theme.colors.warning,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: theme.radius.full,
+  },
+  iapSaleBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#5C4500',
+  },
+  iapTitle: {
+    ...theme.typography.caption,
+    color: theme.colors.textPrimary,
+    fontWeight: '700',
+  },
+  iapActions: {
+    gap: 8,
+  },
+  iapPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  iapNormalPrice: {
+    ...theme.typography.caption,
+    color: theme.colors.textTertiary,
+    textDecorationLine: 'line-through',
+  },
+  iapCurrentPrice: {
+    ...theme.typography.subheading,
+    color: theme.colors.accentDeep,
+  },
+  iapBuyButton: {
+    backgroundColor: theme.colors.accent,
+    paddingVertical: 10,
+    borderRadius: theme.radius.full,
+    alignItems: 'center',
+  },
+  iapBuyButtonText: {
+    ...theme.typography.caption,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  iapRestoreText: {
+    ...theme.typography.tiny,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+  },
+  iapLoadingText: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
   },
 });

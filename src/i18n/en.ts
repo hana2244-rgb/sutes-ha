@@ -116,6 +116,7 @@ const en = {
     photoCount: '{{count}} photos',
     deleteCount: 'Delete {{count}}',
     deleteAllCount: 'Delete all {{count}}',
+    selectAllForDelete: 'Select all for deletion',
     compareReview: 'Compare & Choose',
     showMore: '+{{count}} more',
     deleteConfirmMessage: '{{size}}MB will be freed.\nDeleted photos will be moved to "Recently Deleted".',

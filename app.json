@@ -4,6 +4,10 @@
     "slug": "sutesho",
     "version": "1.0.1",
     "orientation": "portrait",
+    "locales": {
+      "ja": "./locales/ios/ja.json",
+      "en": "./locales/ios/en.json"
+    },
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/icon.png",

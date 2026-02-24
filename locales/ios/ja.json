@@ -1,0 +1,4 @@
+{
+  "NSPhotoLibraryUsageDescription": "写真を端末内で解析し、似ている写真を見つけます。外部送信は一切行いません。",
+  "NSPhotoLibraryAddUsageDescription": "写真の整理に必要です。"
+}
