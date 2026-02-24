@@ -476,7 +476,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
                 style={[
                   styles.thumbnailContainer,
                   isKept && styles.thumbnailKeep,
-                  hasKeep && !isKept && styles.thumbnailDelete,
+                  !isKept && styles.thumbnailDelete,
                 ]}
               >
                 {thumbUris[asset.id] ? (
@@ -500,7 +500,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
                     <Text style={styles.keepBadgeText}>{t('common.keep')}</Text>
                   </View>
                 )}
-                {hasKeep && !isKept && (
+                {!isKept && (
                   <View style={styles.deleteMask}>
                     <Text style={styles.deleteIcon}>✕</Text>
                   </View>

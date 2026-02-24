@@ -17,7 +17,6 @@ export function AdMobBanner() {
   const insets = useSafeAreaInsets();
   const adsSdkReady = useContext(AdsSdkReadyContext);
   const isAdFree = useAppStore((s) => s.isAdFree);
-  if (isAdFree) return null;
   const [adKey, setAdKey] = useState(0);
   const retryCount = useRef(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,6 +43,8 @@ export function AdMobBanner() {
       }, delay);
     }
   }, []);
+
+  if (isAdFree) return null;
 
   if (!adsSdkReady) return <View style={[styles.container, { paddingBottom: insets.bottom }]} />;
 

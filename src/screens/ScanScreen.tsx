@@ -102,6 +102,7 @@ export function ScanScreen() {
   const addToast = useAppStore((s) => s.addToast);
   const toggleKeepAsset = useAppStore((s) => s.toggleKeepAsset);
   const setKeepAssets = useAppStore((s) => s.setKeepAssets);
+  const isAdFree = useAppStore((s) => s.isAdFree);
   const rewardedAd = useRewardedAdContext();
   const [photoCount, setPhotoCount] = useState<number>(0);
 
@@ -299,17 +300,20 @@ export function ScanScreen() {
       }
     };
 
-    // Step 1: 削除確認ダイアログ
+    // Step 1: 削除確認ダイアログ（広告削除購入済みなら「削除」、未購入なら「広告を見て削除」）
+    const deleteButtonText =
+      isAdFree || !rewardedAd ? t('common.delete') : t('scan.batchDeleteAdButton');
+
     Alert.alert(
       t('scan.batchDeleteTitle', { count: allDeletableIds.length }),
       t('scan.batchDeleteMessage', { size: sizeMB }),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
-          text: rewardedAd ? t('scan.batchDeleteAdButton') : t('common.delete'),
+          text: deleteButtonText,
           style: 'destructive',
           onPress: async () => {
-            if (!rewardedAd) {
+            if (isAdFree || !rewardedAd) {
               await executeDelete();
               return;
             }
@@ -327,7 +331,7 @@ export function ScanScreen() {
         },
       ]
     );
-  }, [filteredGroups, totalDeletable, deleteAssets, rewardedAd, addToast, t]);
+  }, [filteredGroups, totalDeletable, deleteAssets, rewardedAd, isAdFree, addToast, t]);
 
   const handleKeepToggle = useCallback(
     (groupId: string, assetId: string) => {
@@ -454,20 +458,18 @@ export function ScanScreen() {
         style={styles.titleRow}
       >
         <Text style={styles.title}>{t('scan.title')}</Text>
-        <View style={styles.titleRight}>
-          <View style={styles.titleBadge}>
-            <Text style={styles.titleBadgeText}>
-              {t('scan.photoCountBadge', { count: photoCount })}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.settingsButton}
-            onPress={() => navigation.navigate('Settings')}
-            accessibilityLabel={t('purchase.title')}
-          >
-            <Text style={styles.settingsButtonText}>{t('purchase.title')}</Text>
-          </TouchableOpacity>
+        <View style={styles.titleBadge}>
+          <Text style={styles.titleBadgeText}>
+            {t('scan.photoCountBadge', { count: photoCount })}
+          </Text>
         </View>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => navigation.navigate('Settings')}
+          accessibilityLabel={t('purchase.title')}
+        >
+          <Text style={styles.settingsButtonText}>{t('purchase.title')}</Text>
+        </TouchableOpacity>
       </Animated.View>
 
       <SimilaritySlider
@@ -735,16 +737,12 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 10,
+    paddingRight: 100,
   },
   title: {
     ...theme.typography.title,
     color: theme.colors.textPrimary,
-  },
-  titleRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
   },
   settingsButton: {
     paddingVertical: 6,
