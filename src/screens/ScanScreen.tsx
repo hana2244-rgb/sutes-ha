@@ -102,6 +102,8 @@ export function ScanScreen() {
   const addToast = useAppStore((s) => s.addToast);
   const toggleKeepAsset = useAppStore((s) => s.toggleKeepAsset);
   const setKeepAssets = useAppStore((s) => s.setKeepAssets);
+  const setGroupAllSelectedForDelete = useAppStore((s) => s.setGroupAllSelectedForDelete);
+  const groupIdsAllSelectedForDelete = useAppStore((s) => s.groupIdsAllSelectedForDelete);
   const isAdFree = useAppStore((s) => s.isAdFree);
   const rewardedAd = useRewardedAdContext();
   const [photoCount, setPhotoCount] = useState<number>(0);
@@ -206,6 +208,9 @@ export function ScanScreen() {
   );
 
   const totalDeletable = filteredGroups.reduce((sum, g) => {
+    if (groupIdsAllSelectedForDelete.includes(g.id)) {
+      return sum + g.assets.reduce((s, a) => s + a.fileSize, 0);
+    }
     if (g.keepAssetIds.length === 0) return sum;
     return (
       sum +
@@ -216,6 +221,9 @@ export function ScanScreen() {
   }, 0);
 
   const totalDeletableCount = filteredGroups.reduce((sum, g) => {
+    if (groupIdsAllSelectedForDelete.includes(g.id)) {
+      return sum + g.assets.length;
+    }
     if (g.keepAssetIds.length === 0) return sum;
     return sum + g.assets.filter((a) => !g.keepAssetIds.includes(a.id)).length;
   }, 0);
@@ -253,6 +261,11 @@ export function ScanScreen() {
     const allDecidedGroupIds: string[] = [];
 
     for (const g of filteredGroups) {
+      if (groupIdsAllSelectedForDelete.includes(g.id)) {
+        // 「全てを削除選択」済み → グループ内全写真を削除リストに
+        allDeletableIds.push(...g.assets.map((a) => a.id));
+        continue;
+      }
       if (g.keepAssetIds.length === 0) continue; // 未選択グループはスキップ
       const deletable = g.assets.filter((a) => !g.keepAssetIds.includes(a.id));
       allDeletableIds.push(...deletable.map((a) => a.id));
@@ -331,7 +344,7 @@ export function ScanScreen() {
         },
       ]
     );
-  }, [filteredGroups, totalDeletable, deleteAssets, rewardedAd, isAdFree, addToast, t]);
+  }, [filteredGroups, totalDeletable, groupIdsAllSelectedForDelete, deleteAssets, rewardedAd, isAdFree, addToast, t]);
 
   const handleKeepToggle = useCallback(
     (groupId: string, assetId: string) => {
@@ -427,8 +440,11 @@ export function ScanScreen() {
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 10 }).current;
 
   const handleSelectAllForDelete = useCallback(
-    (groupId: string) => setKeepAssets(groupId, []),
-    [setKeepAssets]
+    (groupId: string) => {
+      setKeepAssets(groupId, []);
+      setGroupAllSelectedForDelete(groupId, true);
+    },
+    [setKeepAssets, setGroupAllSelectedForDelete]
   );
 
   const renderGroup = useCallback(
@@ -439,9 +455,10 @@ export function ScanScreen() {
         onKeepToggle={handleKeepToggle}
         onDelete={handleGroupDelete}
         onSelectAllForDelete={handleSelectAllForDelete}
+        isGroupAllSelectedForDelete={groupIdsAllSelectedForDelete.includes(item.id)}
       />
     ),
-    [handleKeepToggle, handleGroupDelete, handleSelectAllForDelete]
+    [handleKeepToggle, handleGroupDelete, handleSelectAllForDelete, groupIdsAllSelectedForDelete]
   );
 
   const ListHeader = useMemo(() => (

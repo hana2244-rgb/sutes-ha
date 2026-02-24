@@ -20,6 +20,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   hasSeenOnboarding: false,
   hasPartialScan: false,
   isAdFree: false,
+  groupIdsAllSelectedForDelete: [],
 
   setScanState: (scanState) => set({ scanState }),
 
@@ -33,8 +34,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   setGroups: (groups: SimilarGroup[]) =>
-    set({
-      groups: groups.map((g) => ({ ...g, keepAssetIds: g.keepAssetIds ?? [] })),
+    set((state) => {
+      const idSet = new Set(groups.map((g) => g.id));
+      const kept = state.groupIdsAllSelectedForDelete.filter((id) => idSet.has(id));
+      return {
+        groups: groups.map((g) => ({ ...g, keepAssetIds: g.keepAssetIds ?? [] })),
+        groupIdsAllSelectedForDelete: kept,
+      };
     }),
 
   removeAssetsFromGroups: (assetIds: string[]) =>
@@ -51,8 +57,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
 
   toggleKeepAsset: (groupId: string, assetId: string) =>
-    set((state) => ({
-      groups: state.groups.map((g) => {
+    set((state) => {
+      const nextGroups = state.groups.map((g) => {
         if (g.id !== groupId) return g;
         const has = g.keepAssetIds.includes(assetId);
         return {
@@ -61,8 +67,17 @@ export const useAppStore = create<AppState>((set, get) => ({
             ? g.keepAssetIds.filter((id) => id !== assetId)
             : [...g.keepAssetIds, assetId],
         };
-      }),
-    })),
+      });
+      const addingKeep = (() => {
+        const g = state.groups.find((x) => x.id === groupId);
+        if (!g) return false;
+        return !g.keepAssetIds.includes(assetId);
+      })();
+      const nextAllSelected = addingKeep
+        ? state.groupIdsAllSelectedForDelete.filter((id) => id !== groupId)
+        : state.groupIdsAllSelectedForDelete;
+      return { groups: nextGroups, groupIdsAllSelectedForDelete: nextAllSelected };
+    }),
 
   setKeepAssets: (groupId: string, keepIds: string[]) =>
     set((state) => ({
@@ -70,6 +85,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         g.id === groupId ? { ...g, keepAssetIds: keepIds } : g
       ),
     })),
+
+  setGroupAllSelectedForDelete: (groupId: string, value: boolean) =>
+    set((state) => {
+      const has = state.groupIdsAllSelectedForDelete.includes(groupId);
+      if (value && !has) {
+        return { groupIdsAllSelectedForDelete: [...state.groupIdsAllSelectedForDelete, groupId] };
+      }
+      if (!value && has) {
+        return {
+          groupIdsAllSelectedForDelete: state.groupIdsAllSelectedForDelete.filter((id) => id !== groupId),
+        };
+      }
+      return state;
+    }),
 
   setThermalLevel: (thermalLevel) => set({ thermalLevel }),
 

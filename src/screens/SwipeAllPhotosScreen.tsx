@@ -85,6 +85,7 @@ export function SwipeAllPhotosScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const addToast = useAppStore((s) => s.addToast);
+  const isAdFree = useAppStore((s) => s.isAdFree);
   const rewardedAd = useRewardedAdContext();
   const setHasSeenOnboarding = useAppStore((s) => s.setHasSeenOnboarding);
   const isNative = isNativeModuleAvailable();
@@ -660,13 +661,16 @@ export function SwipeAllPhotosScreen() {
       }
     };
 
+    const deleteButtonText =
+      isAdFree || !rewardedAd ? t('common.delete') : t('swipe.deleteAdButton');
+
     Alert.alert(
       t('swipe.deleteTitle', { count: reviewDeleteIds.length }),
       t('swipe.deleteMessage', { size: sizeMB }),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
-          text: rewardedAd ? t('swipe.deleteAdButton') : t('common.delete'),
+          text: deleteButtonText,
           style: 'destructive',
           onPress: async () => {
             if (!isNative) {
@@ -675,7 +679,7 @@ export function SwipeAllPhotosScreen() {
               navigation.goBack();
               return;
             }
-            if (!rewardedAd) {
+            if (isAdFree || !rewardedAd) {
               await executeDelete();
               return;
             }
@@ -693,7 +697,7 @@ export function SwipeAllPhotosScreen() {
         },
       ]
     );
-  }, [reviewDeleteIds, isNative, addToast, clearProgress, setHasSeenOnboarding, navigation, rewardedAd, t]);
+  }, [reviewDeleteIds, isNative, isAdFree, addToast, clearProgress, setHasSeenOnboarding, navigation, rewardedAd, t]);
 
   // Estimated total bytes for delete candidates
   const reviewTotalBytes = useMemo(() => {

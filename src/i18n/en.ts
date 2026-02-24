@@ -199,6 +199,11 @@ const en = {
     appVersion: 'Version',
     appInfoLabel: 'App Info',
   },
+  errorBoundary: {
+    title: 'Something went wrong',
+    message: 'Sorry, an error occurred while displaying the app. Please try again.',
+    retry: 'Try again',
+  },
 } as const;
 
 export default en;

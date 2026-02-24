@@ -199,6 +199,11 @@ const ja = {
     appVersion: 'バージョン',
     appInfoLabel: 'アプリ情報',
   },
+  errorBoundary: {
+    title: '問題が発生しました',
+    message: '申し訳ありません。アプリの表示中にエラーが起きました。もう一度お試しください。',
+    retry: 'もう一度試す',
+  },
 } as const;
 
 export default ja;

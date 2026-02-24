@@ -95,6 +95,8 @@ export interface AppState {
   hasSeenOnboarding: boolean;
   hasPartialScan: boolean;
   isAdFree: boolean;
+  /** 「全てを削除選択」を押したグループID（未選択状態と区別するため） */
+  groupIdsAllSelectedForDelete: string[];
 
   setScanState: (state: ScanState) => void;
   setScanProgress: (progress: ScanProgress | null) => void;
@@ -104,6 +106,7 @@ export interface AppState {
   removeAssetsFromGroups: (assetIds: string[]) => void;
   toggleKeepAsset: (groupId: string, assetId: string) => void;
   setKeepAssets: (groupId: string, keepIds: string[]) => void;
+  setGroupAllSelectedForDelete: (groupId: string, value: boolean) => void;
   setThermalLevel: (level: string) => void;
   addToast: (toast: Omit<ToastMessage, 'id'>) => void;
   removeToast: (id: string) => void;

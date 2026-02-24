@@ -58,6 +58,8 @@ interface PhotoGroupCardProps {
   onDelete: (assetIds: string[]) => void;
   /** このグループの写真を全て削除対象にする（「残す」をすべて外す） */
   onSelectAllForDelete?: (groupId: string) => void;
+  /** 「全てを削除選択」済みか（未選択状態と区別し、✕オーバーレイを表示する） */
+  isGroupAllSelectedForDelete?: boolean;
 }
 
 export const PhotoGroupCard = React.memo(function PhotoGroupCard({
@@ -66,6 +68,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
   onKeepToggle,
   onDelete,
   onSelectAllForDelete,
+  isGroupAllSelectedForDelete = false,
 }: PhotoGroupCardProps) {
   const { t } = useTranslation();
   const [thumbUris, setThumbUris] = useState<Record<string, string>>({});
@@ -77,6 +80,9 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
     [group.keepAssetIds]
   );
   const hasKeep = keepSet.size > 0;
+  /** 削除候補として表示する（残すでない ＋ 「残す」が1枚以上ある または 「全てを削除選択」済み） */
+  const showDeleteOverlay = (assetId: string) =>
+    !keepSet.has(assetId) && (hasKeep || isGroupAllSelectedForDelete);
 
   const totalSize = group.assets.reduce((sum, a) => sum + a.fileSize, 0);
   const deletableAssets = group.assets.filter((a) => !keepSet.has(a.id));
@@ -476,7 +482,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
                 style={[
                   styles.thumbnailContainer,
                   isKept && styles.thumbnailKeep,
-                  !isKept && styles.thumbnailDelete,
+                  showDeleteOverlay(asset.id) && styles.thumbnailDelete,
                 ]}
               >
                 {thumbUris[asset.id] ? (
@@ -500,7 +506,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
                     <Text style={styles.keepBadgeText}>{t('common.keep')}</Text>
                   </View>
                 )}
-                {!isKept && (
+                {showDeleteOverlay(asset.id) && (
                   <View style={styles.deleteMask}>
                     <Text style={styles.deleteIcon}>✕</Text>
                   </View>

@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import i18n from 'i18next';
 import { theme } from '../theme';
 
 interface Props {
@@ -55,9 +56,9 @@ export class ErrorBoundary extends Component<Props, State> {
         <SafeAreaView style={styles.container}>
           <View style={styles.card}>
             <Text style={styles.emoji}>😵</Text>
-            <Text style={styles.title}>問題が発生しました</Text>
+            <Text style={styles.title}>{i18n.t('errorBoundary.title')}</Text>
             <Text style={styles.message}>
-              申し訳ありません。アプリの表示中にエラーが起きました。もう一度お試しください。
+              {i18n.t('errorBoundary.message')}
             </Text>
             {__DEV__ && error.message ? (
               <Text style={styles.devMessage} numberOfLines={5}>
@@ -71,9 +72,9 @@ export class ErrorBoundary extends Component<Props, State> {
               ]}
               onPress={this.handleRetry}
               accessibilityRole="button"
-              accessibilityLabel="もう一度試す"
+              accessibilityLabel={i18n.t('errorBoundary.retry')}
             >
-              <Text style={styles.buttonText}>もう一度試す</Text>
+              <Text style={styles.buttonText}>{i18n.t('errorBoundary.retry')}</Text>
             </Pressable>
           </View>
         </SafeAreaView>
