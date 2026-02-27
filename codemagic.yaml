@@ -93,11 +93,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
 
-    # Codemagic で「Environment groups」に maestro グループを作成し、
-    # MAESTRO_API_KEY を登録しておくこと
     environment:
-      environment_groups:
-        - maestro
       vars:
         XCODE_WORKSPACE: "sutesho.xcworkspace"
         XCODE_SCHEME: "sutesho"
@@ -141,7 +137,7 @@ workflows:
           curl -Ls "https://get.maestro.mobile.dev" | bash
           echo 'export PATH="$HOME/.maestro/bin:$PATH"' >> $BASH_ENV
 
-      - name: Run Maestro Cloud flows (English UI smoke tests)
+      - name: Run Maestro flows locally (English UI smoke tests)
         script: |
           set -e
           source $BASH_ENV
@@ -152,5 +148,5 @@ workflows:
             exit 1
           fi
           echo "Using app binary: $APP_PATH"
-          maestro cloud --apiKey "$MAESTRO_API_KEY" "$APP_PATH" .maestro
+          maestro test "$APP_PATH" .maestro
 
