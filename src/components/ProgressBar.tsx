@@ -76,7 +76,7 @@ export function ProgressBar({ progress }: ProgressBarProps) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.phaseLabel}>
-          {progress.phaseLabel || phaseLabels[progress.phase] || t('progress.processing')}
+          {phaseLabels[progress.phase] ?? t('progress.processing')}
         </Text>
         <Text style={styles.percentText}>{t('progress.overall', { percent: overallPercent })}</Text>
       </View>
