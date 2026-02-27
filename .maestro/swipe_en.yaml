@@ -1,0 +1,14 @@
+appId: com.Akifumi.H.trashsnap
+name: Swipe mode (EN) navigation
+
+flow:
+  - launchApp:
+      clearState: true
+
+  - assertVisible: "Swipe to Organize"
+  - tapOn: "Swipe to Organize"
+
+  # スワイプ画面のヘッダーとメッセージ（写真が無くても通る想定）
+  - assertVisible: "Swipe to Organize"
+  - assertVisible: "No photos"
+

@@ -1,0 +1,21 @@
+appId: com.Akifumi.H.trashsnap
+name: Scan progress (EN) and permissions
+
+flow:
+  - launchApp:
+      clearState: true
+
+  # メイン画面（英語）
+  - assertVisible: "TrashSnap"
+  - tapOn: "Start Scan"
+
+  # 写真アクセス許可ダイアログ（英語端末想定）
+  - tapOn: "Allow Full Access"
+
+  # スキャン進捗が英語表記で表示されること
+  - waitFor:
+      visible: "Counting photos..."
+      timeout: 15000
+
+  - assertVisible: "Overall"
+

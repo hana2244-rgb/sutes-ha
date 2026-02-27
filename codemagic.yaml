@@ -87,3 +87,70 @@ workflows:
         submit_to_testflight: true
         # 外部テスト用には App Store Connect で「テスト情報」に Beta App Description の入力が必須
         # 初回は submit_to_testflight: false で IPA だけビルドし、手動アップロードしても可
+
+  ios-maestro:
+    name: iOS UI tests (Maestro)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    # Codemagic で「Environment groups」に maestro グループを作成し、
+    # MAESTRO_API_KEY を登録しておくこと
+    environment:
+      environment_groups:
+        - maestro
+      vars:
+        XCODE_WORKSPACE: "sutesho.xcworkspace"
+        XCODE_SCHEME: "sutesho"
+        BUNDLE_ID: "com.Akifumi.H.trashsnap"
+
+    scripts:
+      - name: Install npm dependencies
+        script: npm ci
+
+      - name: Prebuild iOS (for simulator)
+        script: |
+          set -e
+          npx expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods
+        script: cd ios && pod install
+
+      - name: Build iOS simulator .app for Maestro
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          WORKSPACE_PATH=$(find ios -maxdepth 1 -name "*.xcworkspace" -type d | head -1)
+          if [ -z "$WORKSPACE_PATH" ]; then
+            echo "Error: No .xcworkspace found in ios/. Listing ios/:"
+            ls -la ios/
+            exit 1
+          fi
+          SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
+          echo "Building simulator app for workspace: $WORKSPACE_PATH, scheme: $SCHEME_NAME"
+          xcodebuild \
+            -workspace "$WORKSPACE_PATH" \
+            -scheme "$SCHEME_NAME" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CONFIGURATION_BUILD_DIR="$CM_BUILD_DIR/build/maestro"
+
+      - name: Install Maestro CLI
+        script: |
+          set -e
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo 'export PATH="$HOME/.maestro/bin:$PATH"' >> $BASH_ENV
+
+      - name: Run Maestro Cloud flows (English UI smoke tests)
+        script: |
+          set -e
+          source $BASH_ENV
+          APP_PATH=$(find "$CM_BUILD_DIR/build/maestro" -maxdepth 1 -name "*.app" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app found in build/maestro"
+            ls -la "$CM_BUILD_DIR/build/maestro" || true
+            exit 1
+          fi
+          echo "Using app binary: $APP_PATH"
+          maestro cloud --apiKey "$MAESTRO_API_KEY" "$APP_PATH" .maestro
+
