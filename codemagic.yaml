@@ -122,13 +122,16 @@ workflows:
             exit 1
           fi
           SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
-          echo "Building simulator app for workspace: $WORKSPACE_PATH, scheme: $SCHEME_NAME"
+          echo "Building simulator app for workspace: $WORKSPACE_PATH, scheme: $SCHEME_NAME (arm64 simulator only)"
           xcodebuild \
             -workspace "$WORKSPACE_PATH" \
             -scheme "$SCHEME_NAME" \
             -configuration Debug \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=YES \
+            EXCLUDED_ARCHS='i386 x86_64' \
             CONFIGURATION_BUILD_DIR="$CM_BUILD_DIR/build/maestro"
 
       - name: Install Maestro CLI
