@@ -116,7 +116,7 @@ const ja = {
     photoCount: '{{count}}枚',
     deleteCount: '{{count}}枚を削除',
     deleteAllCount: '全{{count}}枚を削除',
-    selectAllForDelete: '全てを削除選択',
+    selectAllForDelete: '全てを\n削除選択',
     compareReview: '見比べて選ぶ',
     showMore: '+{{count}}枚をもっと見る',
     deleteConfirmMessage: '{{size}}MB の空きができます。\n削除した写真は「最近削除した項目」に移動します。',

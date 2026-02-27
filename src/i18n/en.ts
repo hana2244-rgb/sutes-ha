@@ -1,6 +1,6 @@
 const en = {
   common: {
-    appName: 'Trash Snap',
+    appName: 'TrashSnap',
     cancel: 'Cancel',
     delete: 'Delete',
     keep: 'Keep',
@@ -52,7 +52,7 @@ const en = {
     permissionDenied: 'Photo access not granted',
   },
   onboarding: {
-    title: 'Trash Snap',
+    title: 'TrashSnap',
     subtitle: 'Quickly tidy up similar photos',
     feature1Title: 'Fully Offline',
     feature1Desc: 'Photos are analyzed on-device only. No data is ever sent externally or used for AI training.',
@@ -72,7 +72,7 @@ const en = {
     choiceScanButton: 'Start Scan',
   },
   scan: {
-    title: 'Trash Snap',
+    title: 'TrashSnap',
     expoGoBanner: '📱 Expo Go preview (scan requires dev build)',
     photoCountBadge: '{{count}} photos',
     clearCache: 'Clear Cache',
@@ -116,7 +116,7 @@ const en = {
     photoCount: '{{count}} photos',
     deleteCount: 'Delete {{count}}',
     deleteAllCount: 'Delete all {{count}}',
-    selectAllForDelete: 'Select all for deletion',
+    selectAllForDelete: 'Select all\nfor deletion',
     compareReview: 'Compare & Choose',
     showMore: '+{{count}} more',
     deleteConfirmMessage: '{{size}}MB will be freed.\nDeleted photos will be moved to "Recently Deleted".',

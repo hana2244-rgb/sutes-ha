@@ -470,23 +470,22 @@ export function ScanScreen() {
           </Text>
         </View>
       )}
-      <Animated.View
-        entering={FadeInDown.duration(400)}
-        style={styles.titleRow}
-      >
+      <Animated.View entering={FadeInDown.duration(400)}>
         <Text style={styles.title}>{t('scan.title')}</Text>
-        <View style={styles.titleBadge}>
-          <Text style={styles.titleBadgeText}>
-            {t('scan.photoCountBadge', { count: photoCount })}
-          </Text>
+        <View style={styles.titleSubRow}>
+          <View style={styles.titleBadge}>
+            <Text style={styles.titleBadgeText}>
+              {t('scan.photoCountBadge', { count: photoCount })}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => navigation.navigate('Settings')}
+            accessibilityLabel={t('purchase.title')}
+          >
+            <Text style={styles.settingsButtonText}>{t('purchase.title')}</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => navigation.navigate('Settings')}
-          accessibilityLabel={t('purchase.title')}
-        >
-          <Text style={styles.settingsButtonText}>{t('purchase.title')}</Text>
-        </TouchableOpacity>
       </Animated.View>
 
       <SimilaritySlider
@@ -751,15 +750,15 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 16,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingRight: 100,
-  },
   title: {
     ...theme.typography.title,
     color: theme.colors.textPrimary,
+  },
+  titleSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 6,
   },
   settingsButton: {
     paddingVertical: 6,

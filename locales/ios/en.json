@@ -1,4 +1,5 @@
 {
+  "CFBundleDisplayName": "TrashSnap",
   "NSPhotoLibraryUsageDescription": "This app analyzes photos on your device to find similar photos. No data is sent externally.",
   "NSPhotoLibraryAddUsageDescription": "Required for organizing your photos."
 }

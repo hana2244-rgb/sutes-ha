@@ -448,7 +448,7 @@ export const PhotoGroupCard = React.memo(function PhotoGroupCard({
               onPress={handleSelectAllForDelete}
               activeOpacity={0.7}
             >
-              <Text style={styles.selectAllForDeleteButtonText}>
+              <Text style={styles.selectAllForDeleteButtonText} numberOfLines={2}>
                 {t('group.selectAllForDelete')}
               </Text>
             </TouchableOpacity>
@@ -661,6 +661,7 @@ const styles = StyleSheet.create({
     ...theme.typography.tiny,
     color: theme.colors.secondary,
     fontWeight: '600',
+    textAlign: 'center',
   },
   deleteButton: {
     backgroundColor: theme.colors.danger,
