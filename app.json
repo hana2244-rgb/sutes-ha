@@ -2,7 +2,7 @@
   "expo": {
     "name": "捨て写",
     "slug": "sutesho",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "locales": {
       "ja": "./locales/ios/ja.json",

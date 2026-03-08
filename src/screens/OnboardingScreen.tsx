@@ -2,7 +2,7 @@
 // 捨て写 - Onboarding Screen（ソーダグラス）
 // ============================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -39,6 +39,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const isAdFree = useAppStore((s) => s.isAdFree);
   const addToast = useAppStore((s) => s.addToast);
   const [hasSwipeProgress, setHasSwipeProgress] = useState(false);
+  const completingRef = useRef(false);
   const { product, isSale, isLoading, error, purchase, restore } = usePurchases();
 
   useEffect(() => {
@@ -69,10 +70,15 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     }
   }, [restore, addToast, t]);
 
-  const handleStart = (mode: 'swipe' | 'scan') => {
-    setOnboardingSeen();
-    onComplete(mode);
-  };
+  const handleStart = useCallback(
+    (mode: 'swipe' | 'scan') => {
+      if (completingRef.current) return;
+      completingRef.current = true;
+      setOnboardingSeen();
+      onComplete(mode);
+    },
+    [setOnboardingSeen, onComplete]
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 40 }]}>

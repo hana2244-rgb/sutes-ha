@@ -10,6 +10,7 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  InteractionManager,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -154,16 +155,21 @@ export function ScanScreen() {
   const initialActionConsumed = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const count = await getPhotoCount();
+      if (cancelled) return;
       setPhotoCount(count);
       await checkPartialScan();
+      if (cancelled) return;
 
-      // checkPartialScan 完了後に initialAction を処理
-      if (!initialActionConsumed.current) {
+      // ナビ・ネイティブが準備できるまで遅延（オンボーディング直後の「前回の続きから」クラッシュ対策）
+      InteractionManager.runAfterInteractions(() => {
+        if (cancelled || initialActionConsumed.current) return;
         const action = route.params?.initialAction;
-        if (action) {
-          initialActionConsumed.current = true;
+        if (!action) return;
+        initialActionConsumed.current = true;
+        try {
           if (action === 'swipe') {
             navigation.navigate('SwipeAllPhotos');
           } else if (action === 'scan') {
@@ -174,9 +180,14 @@ export function ScanScreen() {
               startScan();
             }
           }
+        } catch (e) {
+          if (__DEV__) console.warn('[ScanScreen] initialAction failed', e);
         }
-      }
+      });
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // 永続化済み「すべて残す」グループIDを読み込み

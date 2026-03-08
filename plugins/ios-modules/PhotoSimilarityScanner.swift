@@ -188,8 +188,9 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       self.deleteProgressFile()
       self.deleteFoundGroupsFile()
       self.loadCache()
+      let assets = self.fetchAllImageAssetsOnMainThread()
       do {
-        try self.runScan()
+        try self.runScan(assets: assets)
         resolved = true
         DispatchQueue.main.async { resolve(NSNull()) }
       } catch {
@@ -238,6 +239,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       self.shouldCancel = false
       self.loadCache()
 
+      let assets = self.fetchAllImageAssetsOnMainThread()
       if let (resumeFrom, _) = self.loadProgressFromFile() {
         if let saved = self.loadFoundGroupsFile() {
           self.foundGroups = saved
@@ -245,7 +247,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         resolved = true
         DispatchQueue.main.async { resolve(NSNull()) }
         do {
-          try self.runScan(resumeFrom: resumeFrom)
+          try self.runScan(assets: assets, resumeFrom: resumeFrom)
           self.saveProgressFile(current: 0, total: 0, phase: "idle")
           self.deleteProgressFile()
           self.deleteFoundGroupsFile()
@@ -260,7 +262,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         resolved = true
         DispatchQueue.main.async { resolve(NSNull()) }
         do {
-          try self.runScan()
+          try self.runScan(assets: assets)
           self.saveProgressFile(current: 0, total: 0, phase: "idle")
           self.deleteProgressFile()
           self.deleteFoundGroupsFile()
@@ -274,13 +276,23 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     }
   }
 
-  private func runScan(resumeFrom: Int? = nil) throws {
-    let options = PHFetchOptions()
-    options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
-    options.includeAllBurstAssets = true
-    let fetchResult = PHAsset.fetchAssets(with: .image, options: options)
-    var assets: [PHAsset] = []
-    fetchResult.enumerateObjects { asset, _, _ in assets.append(asset) }
+  /// メインスレッドで fetch + enumerate を行う（バックグラウンドでの PHBatchFetchingArray クラッシュ対策）
+  private func fetchAllImageAssetsOnMainThread() -> [PHAsset] {
+    var result: [PHAsset] = []
+    let sem = DispatchSemaphore(value: 0)
+    DispatchQueue.main.async {
+      let options = PHFetchOptions()
+      options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+      options.includeAllBurstAssets = true
+      let fetchResult = PHAsset.fetchAssets(with: .image, options: options)
+      fetchResult.enumerateObjects { asset, _, _ in result.append(asset) }
+      sem.signal()
+    }
+    sem.wait()
+    return result
+  }
+
+  private func runScan(assets: [PHAsset], resumeFrom: Int? = nil) throws {
     allAssets = assets
     let total = assets.count
 
@@ -515,16 +527,18 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       resolve(["deletedCount": 0, "freedBytes": 0, "success": true] as [String: Any])
       return
     }
-    let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: assetIds, options: nil)
-    var totalBytes: Int64 = 0
-    var toDelete: [PHAsset] = []
-    fetchResult.enumerateObjects { [weak self] asset, _, _ in
-      toDelete.append(asset)
-      totalBytes += self?.getResourceFileSize(asset) ?? 0
-    }
-    PHPhotoLibrary.shared().performChanges({
-      PHAssetChangeRequest.deleteAssets(toDelete as NSArray)
-    }) { ok, error in
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { return }
+      let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: assetIds, options: nil)
+      var totalBytes: Int64 = 0
+      var toDelete: [PHAsset] = []
+      fetchResult.enumerateObjects { asset, _, _ in
+        toDelete.append(asset)
+        totalBytes += self.getResourceFileSize(asset)
+      }
+      PHPhotoLibrary.shared().performChanges({
+        PHAssetChangeRequest.deleteAssets(toDelete as NSArray)
+      }) { ok, error in
       if ok {
         resolve([
           "deletedCount": toDelete.count,
@@ -539,6 +553,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
           "error": error?.localizedDescription ?? "unknown",
         ] as [String: Any])
       }
+    }
     }
   }
 
@@ -563,19 +578,25 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       return
     }
 
-    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-      guard let self = self else { resolve([String: String]()); return }
-
-      // 1. 全アセットを一括 fetch（個別 fetch の繰り返しを排除）
+    // PHFetchResult の fetch + enumerate はメインスレッドで実行（クラッシュ対策）
+    var assetMap: [String: PHAsset] = [:]
+    var assets: [PHAsset] = []
+    let sem = DispatchSemaphore(value: 0)
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { sem.signal(); return }
       let fetchOptions = PHFetchOptions()
       fetchOptions.includeAllBurstAssets = true
       let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: assetIds, options: fetchOptions)
-      var assetMap: [String: PHAsset] = [:]
-      var assets: [PHAsset] = []
       fetchResult.enumerateObjects { asset, _, _ in
         assetMap[asset.localIdentifier] = asset
         assets.append(asset)
       }
+      sem.signal()
+    }
+    sem.wait()
+
+    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+      guard let self = self else { resolve([String: String]()); return }
 
       // ディスクキャッシュ済みを先に振り分け
       let lock = NSLock()
@@ -911,7 +932,8 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   // MARK: - All Photos (Swipe Mode)
 
   @objc func getAllPhotos(_ offset: Int, limit: Int, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+    // PHFetchResult の fetch と object(at:) はメインスレッドで実行（バックグラウンドでのクラッシュ対策）
+    DispatchQueue.main.async { [weak self] in
       guard let self = self else { return }
       let options = PHFetchOptions()
       options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
@@ -932,9 +954,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
           "height": a.pixelHeight,
         ])
       }
-      DispatchQueue.main.async {
-        resolve(["assets": assets, "total": total])
-      }
+      resolve(["assets": assets, "total": total])
     }
   }
 
@@ -975,8 +995,10 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   }
 
   @objc func getTotalPhotoCount(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    let result = PHAsset.fetchAssets(with: .image, options: nil).count
-    resolve(result)
+    DispatchQueue.main.async {
+      let result = PHAsset.fetchAssets(with: .image, options: nil).count
+      resolve(result)
+    }
   }
 
   // MARK: - Persistence
