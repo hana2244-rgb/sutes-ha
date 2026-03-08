@@ -41,12 +41,7 @@ function withPhotoSimilarityScanner(config) {
     project.addToPbxGroup(modulesGroup.uuid, mainGroupKey);
 
     for (const file of sourceFiles) {
-      const filePath = `NativeModules/${file}`;
-      if (file.endsWith('.swift')) {
-        project.addSourceFile(filePath, {}, modulesGroup.uuid);
-      } else {
-        project.addSourceFile(filePath, {}, modulesGroup.uuid);
-      }
+      project.addSourceFile(file, {}, modulesGroup.uuid);
     }
 
     const buildConfigs = project.pbxXCBuildConfigurationSection();
