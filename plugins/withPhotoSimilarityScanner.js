@@ -33,6 +33,8 @@ function withPhotoSimilarityScanner(config) {
     const sourceFiles = [
       'PhotoSimilarityScanner.swift',
       'PhotoSimilarityScanner.m',
+      'PhotoGalleryView.swift',
+      'PhotoGalleryViewManager.m',
     ];
 
     const mainGroupKey = project.getFirstProject().firstProject.mainGroup;
@@ -87,6 +89,8 @@ function withPhotoSimilarityScanner(config) {
       const files = [
         'PhotoSimilarityScanner.swift',
         'PhotoSimilarityScanner.m',
+        'PhotoGalleryView.swift',
+        'PhotoGalleryViewManager.m',
       ];
 
       for (const file of files) {

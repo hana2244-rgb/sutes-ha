@@ -131,6 +131,8 @@ export function ScanScreen() {
 
   const listRef = useRef<FlatList>(null);
   const firstVisibleIndexRef = useRef<number>(0);
+  /** まとめて削除後に、見ていた位置へスクロールするためのインデックス（null でないとき次の effect でスクロール） */
+  const scrollToIndexAfterDeleteRef = useRef<number | null>(null);
 
   const handleClearCache = useCallback(() => {
     Alert.alert(
@@ -288,6 +290,7 @@ export function ScanScreen() {
 
     // 削除対象がなくても、全写真が残す選択済みのグループがある場合は非表示にする
     if (allDeletableIds.length === 0 && allDecidedGroupIds.length > 0) {
+      scrollToIndexAfterDeleteRef.current = firstVisibleIndexRef.current;
       setDismissedGroupIds((prev) => {
         const next = new Set(prev);
         allDecidedGroupIds.forEach((id) => next.add(id));
@@ -302,10 +305,13 @@ export function ScanScreen() {
 
     // 削除実行（広告視聴後に呼ばれる）
     const executeDelete = async () => {
+      const indexBeforeDelete = firstVisibleIndexRef.current;
       const result = await deleteAssets(allDeletableIds);
       if (result?.success) {
         const count = await getPhotoCount();
         setPhotoCount(count);
+        // 削除後、見ていた位置へスクロールするためにインデックスを保存
+        scrollToIndexAfterDeleteRef.current = indexBeforeDelete;
         // 削除後、全写真に判定済みのグループを非表示にする
         const currentGroups = useAppStore.getState().groups;
         const toDismiss: string[] = [];
@@ -438,6 +444,19 @@ export function ScanScreen() {
       cancelled = true;
     };
   }, [hasLoadedHiddenIds, groups.length, scanState, filteredGroups.length]);
+
+  // まとめて削除後、見ていたグループ位置へスクロールを追従させる
+  useEffect(() => {
+    const target = scrollToIndexAfterDeleteRef.current;
+    if (target === null || filteredGroups.length === 0) return;
+    scrollToIndexAfterDeleteRef.current = null;
+    const maxIndex = Math.max(0, filteredGroups.length - 1);
+    const index = Math.min(target, maxIndex);
+    const t = setTimeout(() => {
+      listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0 });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [filteredGroups]);
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: Array<{ item: SimilarGroup; index: number | null }> }) => {

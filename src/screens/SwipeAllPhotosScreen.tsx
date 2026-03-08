@@ -48,6 +48,7 @@ import { useAppStore } from '../store';
 import type { PhotoAsset } from '../types';
 import { SWIPE_PROGRESS_KEY } from '../constants/storageKeys';
 import { useRewardedAdContext } from '../ads/RewardedAdContext';
+import { NativePhotoGalleryView } from '../components/NativePhotoGalleryView';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 80;
@@ -526,18 +527,56 @@ export function SwipeAllPhotosScreen() {
   // Gallery modal
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [galleryThumbUris, setGalleryThumbUris] = useState<Record<string, string>>({});
+  const [galleryAssetIds, setGalleryAssetIds] = useState<string[]>([]);
+  const [galleryDeleteIds, setGalleryDeleteIds] = useState<string[]>([]);
+  const [gallerySkipIds, setGallerySkipIds] = useState<string[]>([]);
   const galleryListRef = useRef<FlatList>(null);
 
   const handleOpenGallery = useCallback(() => {
-    setGalleryVisible(true);
-    if (!isNative) return;
+    if (!isNative) {
+      setGalleryVisible(true);
+      (async () => {
+        const GALLERY_FIRST_BATCH = 24;
+        const GALLERY_BATCH_SIZE = 60;
+        const GALLERY_PARALLEL = 5;
+        const galleryThumbSize = Math.round(GALLERY_THUMB_SIZE * 3);
+        while (photosRef.current.length < totalRef.current) {
+          if (loadingMoreRef.current) {
+            await new Promise((r) => setTimeout(r, 100));
+            continue;
+          }
+          await loadPage(photosRef.current.length);
+        }
+        const photoIds = photosRef.current.map((p) => p.id);
+        try {
+          const first = photoIds.slice(0, GALLERY_FIRST_BATCH);
+          const firstThumbs = await getThumbnailURLs(first, galleryThumbSize, galleryThumbSize);
+          setGalleryThumbUris((prev) => ({ ...prev, ...firstThumbs }));
+          for (let i = GALLERY_FIRST_BATCH; i < photoIds.length; i += GALLERY_BATCH_SIZE * GALLERY_PARALLEL) {
+            const promises: Promise<Record<string, string>>[] = [];
+            for (let j = 0; j < GALLERY_PARALLEL; j++) {
+              const start = i + j * GALLERY_BATCH_SIZE;
+              if (start >= photoIds.length) break;
+              const batch = photoIds.slice(start, start + GALLERY_BATCH_SIZE);
+              promises.push(getThumbnailURLs(batch, galleryThumbSize, galleryThumbSize));
+            }
+            const results = await Promise.all(promises);
+            const merged = Object.assign({}, ...results);
+            if (Object.keys(merged).length > 0) {
+              setGalleryThumbUris((prev) => ({ ...prev, ...merged }));
+            }
+          }
+        } catch {}
+      })();
+      setTimeout(() => {
+        const row = Math.floor(currentIndexRef.current / GALLERY_COLUMNS);
+        galleryListRef.current?.scrollToOffset({ offset: row * (GALLERY_THUMB_SIZE + GALLERY_GAP), animated: false });
+      }, 100);
+      return;
+    }
 
+    // ネイティブ一覧: 全ページ読み込み後に assetIds を渡してからモーダルを開く
     (async () => {
-      const GALLERY_FIRST_BATCH = 24;
-      const GALLERY_BATCH_SIZE = 60;
-      const GALLERY_PARALLEL = 5;
-      const galleryThumbSize = Math.round(GALLERY_THUMB_SIZE * 3);
-
       while (photosRef.current.length < totalRef.current) {
         if (loadingMoreRef.current) {
           await new Promise((r) => setTimeout(r, 100));
@@ -545,35 +584,11 @@ export function SwipeAllPhotosScreen() {
         }
         await loadPage(photosRef.current.length);
       }
-
-      const photos = photosRef.current;
-      const photoIds = photos.map((p) => p.id);
-      try {
-        const first = photoIds.slice(0, GALLERY_FIRST_BATCH);
-        const firstThumbs = await getThumbnailURLs(first, galleryThumbSize, galleryThumbSize);
-        setGalleryThumbUris((prev) => ({ ...prev, ...firstThumbs }));
-        for (let i = GALLERY_FIRST_BATCH; i < photoIds.length; i += GALLERY_BATCH_SIZE * GALLERY_PARALLEL) {
-          const promises: Promise<Record<string, string>>[] = [];
-          for (let j = 0; j < GALLERY_PARALLEL; j++) {
-            const start = i + j * GALLERY_BATCH_SIZE;
-            if (start >= photoIds.length) break;
-            const batch = photoIds.slice(start, start + GALLERY_BATCH_SIZE);
-            promises.push(getThumbnailURLs(batch, galleryThumbSize, galleryThumbSize));
-          }
-          const results = await Promise.all(promises);
-          const merged = Object.assign({}, ...results);
-          if (Object.keys(merged).length > 0) {
-            setGalleryThumbUris((prev) => ({ ...prev, ...merged }));
-          }
-        }
-      } catch {}
+      setGalleryAssetIds(photosRef.current.map((p) => p.id));
+      setGalleryDeleteIds(Array.from(deleteIdsRef.current));
+      setGallerySkipIds(Array.from(skipIdsRef.current));
+      setGalleryVisible(true);
     })();
-
-    // Scroll to current position after modal opens
-    setTimeout(() => {
-      const row = Math.floor(currentIndexRef.current / GALLERY_COLUMNS);
-      galleryListRef.current?.scrollToOffset({ offset: row * (GALLERY_THUMB_SIZE + GALLERY_GAP), animated: false });
-    }, 100);
   }, [isNative, loadPage]);
 
   const handleGalleryJump = useCallback((index: number) => {
@@ -990,63 +1005,77 @@ export function SwipeAllPhotosScreen() {
             <Text style={styles.headerTitle}>{t('swipe.galleryTitle')}</Text>
             <View style={styles.closeBtn} />
           </View>
-          <FlatList
-            ref={galleryListRef}
-            data={photosRef.current}
-            numColumns={GALLERY_COLUMNS}
-            keyExtractor={(item) => item.id}
-            getItemLayout={(_, index) => ({
-              length: GALLERY_THUMB_SIZE + GALLERY_GAP,
-              offset: (GALLERY_THUMB_SIZE + GALLERY_GAP) * Math.floor(index / GALLERY_COLUMNS),
-              index,
-            })}
-            renderItem={({ item, index }) => {
-              const isDeleted = deleteIdsRef.current.has(item.id);
-              const isSkipped = skipIdsRef.current.has(item.id);
-              const isReviewed = index < currentIndexRef.current;
-              const isKept = isReviewed && !isDeleted && !isSkipped;
-              const isCurrent = index === currentIndexRef.current;
-              const thumbUri = galleryThumbUris[item.id];
+          {isNative && galleryAssetIds.length > 0 ? (
+            <View style={{ flex: 1 }}>
+              <NativePhotoGalleryView
+                style={{ flex: 1 }}
+                assetIds={galleryAssetIds}
+                currentIndex={currentIndex}
+                deleteIds={galleryDeleteIds}
+                skipIds={gallerySkipIds}
+                currentBadgeText={t('swipe.galleryJumpHere')}
+                onSelectIndex={(e) => handleGalleryJump(e.nativeEvent.index)}
+              />
+            </View>
+          ) : !isNative ? (
+            <FlatList
+              ref={galleryListRef}
+              data={photosRef.current}
+              numColumns={GALLERY_COLUMNS}
+              keyExtractor={(item) => item.id}
+              getItemLayout={(_, index) => ({
+                length: GALLERY_THUMB_SIZE + GALLERY_GAP,
+                offset: (GALLERY_THUMB_SIZE + GALLERY_GAP) * Math.floor(index / GALLERY_COLUMNS),
+                index,
+              })}
+              renderItem={({ item, index }) => {
+                const isDeleted = deleteIdsRef.current.has(item.id);
+                const isSkipped = skipIdsRef.current.has(item.id);
+                const isReviewed = index < currentIndexRef.current;
+                const isKept = isReviewed && !isDeleted && !isSkipped;
+                const isCurrent = index === currentIndexRef.current;
+                const thumbUri = galleryThumbUris[item.id];
 
-              return (
-                <TouchableOpacity
-                  onPress={() => handleGalleryJump(index)}
-                  activeOpacity={0.7}
-                  style={[
-                    styles.galleryThumb,
-                    isReviewed && isKept && styles.galleryThumbKeep,
-                    isReviewed && isDeleted && styles.galleryThumbDelete,
-                    isCurrent && styles.galleryThumbCurrent,
-                  ]}
-                >
-                  {thumbUri ? (
-                    <Image
-                      source={{ uri: thumbUri }}
-                      style={styles.galleryThumbImage}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={[styles.galleryThumbImage, styles.galleryThumbPlaceholder]}>
-                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                    </View>
-                  )}
-                  {isReviewed && isDeleted && (
-                    <View style={styles.galleryDeleteOverlay}>
-                      <Text style={styles.galleryDeleteIcon}>✕</Text>
-                    </View>
-                  )}
-                  {isCurrent && (
-                    <View style={styles.galleryCurrentBadge}>
-                      <Text style={styles.galleryCurrentBadgeText}>{t('swipe.galleryJumpHere')}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            }}
-            contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
-            columnWrapperStyle={{ gap: GALLERY_GAP }}
-            ItemSeparatorComponent={GallerySeparator}
-          />
+                return (
+                  <TouchableOpacity
+                    onPress={() => handleGalleryJump(index)}
+                    activeOpacity={0.7}
+                    style={[
+                      styles.galleryThumb,
+                      isReviewed && isKept && styles.galleryThumbKeep,
+                      isReviewed && isDeleted && styles.galleryThumbDelete,
+                      isCurrent && styles.galleryThumbCurrent,
+                    ]}
+                  >
+                    {thumbUri ? (
+                      <Image
+                        source={{ uri: thumbUri }}
+                        style={styles.galleryThumbImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={[styles.galleryThumbImage, styles.galleryThumbPlaceholder]}>
+                        <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                      </View>
+                    )}
+                    {isReviewed && isDeleted && (
+                      <View style={styles.galleryDeleteOverlay}>
+                        <Text style={styles.galleryDeleteIcon}>✕</Text>
+                      </View>
+                    )}
+                    {isCurrent && (
+                      <View style={styles.galleryCurrentBadge}>
+                        <Text style={styles.galleryCurrentBadgeText}>{t('swipe.galleryJumpHere')}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+              columnWrapperStyle={{ gap: GALLERY_GAP }}
+              ItemSeparatorComponent={GallerySeparator}
+            />
+          ) : null}
         </View>
       </Modal>
     </GestureHandlerRootView>
