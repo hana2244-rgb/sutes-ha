@@ -38,6 +38,7 @@ function withPhotoSimilarityScanner(config) {
     ];
 
     const mainGroupKey = project.getFirstProject().firstProject.mainGroup;
+    project.addToPbxGroup(modulesGroup.uuid, mainGroupKey);
 
     for (const file of sourceFiles) {
       const filePath = `NativeModules/${file}`;

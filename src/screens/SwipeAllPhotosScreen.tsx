@@ -48,7 +48,7 @@ import { useAppStore } from '../store';
 import type { PhotoAsset } from '../types';
 import { SWIPE_PROGRESS_KEY } from '../constants/storageKeys';
 import { useRewardedAdContext } from '../ads/RewardedAdContext';
-import { NativePhotoGalleryView } from '../components/NativePhotoGalleryView';
+import { NativePhotoGalleryView, isNativeGalleryAvailable } from '../components/NativePhotoGalleryView';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 80;
@@ -90,6 +90,7 @@ export function SwipeAllPhotosScreen() {
   const rewardedAd = useRewardedAdContext();
   const setHasSeenOnboarding = useAppStore((s) => s.setHasSeenOnboarding);
   const isNative = isNativeModuleAvailable();
+  const useNativeGallery = isNative && isNativeGalleryAvailable;
 
   // Phase state
   const [phase, setPhase] = useState<Phase>('swiping');
@@ -533,7 +534,7 @@ export function SwipeAllPhotosScreen() {
   const galleryListRef = useRef<FlatList>(null);
 
   const handleOpenGallery = useCallback(() => {
-    if (!isNative) {
+    if (!useNativeGallery) {
       setGalleryVisible(true);
       (async () => {
         const GALLERY_FIRST_BATCH = 24;
@@ -596,7 +597,7 @@ export function SwipeAllPhotosScreen() {
         if (__DEV__) console.warn('[SwipeAll] gallery load failed', e);
       }
     })();
-  }, [isNative, loadPage]);
+  }, [useNativeGallery, loadPage]);
 
   const handleGalleryJump = useCallback((index: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1012,12 +1013,12 @@ export function SwipeAllPhotosScreen() {
             <Text style={styles.headerTitle}>{t('swipe.galleryTitle')}</Text>
             <View style={styles.closeBtn} />
           </View>
-          {isNative && galleryAssetIds.length === 0 ? (
+          {useNativeGallery && galleryAssetIds.length === 0 ? (
             <View style={[styles.galleryLoadingWrap, { paddingBottom: insets.bottom + 16 }]}>
               <ActivityIndicator size="large" color={theme.colors.accent} />
               <Text style={styles.galleryLoadingText}>{t('swipe.galleryLoading')}</Text>
             </View>
-          ) : isNative && galleryAssetIds.length > 0 ? (
+          ) : useNativeGallery && galleryAssetIds.length > 0 ? (
             <View style={{ flex: 1 }}>
               <NativePhotoGalleryView
                 style={{ flex: 1 }}
@@ -1029,7 +1030,7 @@ export function SwipeAllPhotosScreen() {
                 onSelectIndex={(e) => handleGalleryJump(e.nativeEvent.index)}
               />
             </View>
-          ) : !isNative ? (
+          ) : !useNativeGallery ? (
             <FlatList
               ref={galleryListRef}
               data={photosRef.current}

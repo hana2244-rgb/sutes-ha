@@ -3,7 +3,7 @@
 // ============================================================
 
 import React from 'react';
-import { requireNativeComponent, ViewStyle } from 'react-native';
+import { requireNativeComponent, UIManager, ViewStyle } from 'react-native';
 
 type NativePhotoGalleryViewProps = {
   style?: ViewStyle;
@@ -18,6 +18,10 @@ type NativePhotoGalleryViewProps = {
 const NativePhotoGalleryViewComponent = requireNativeComponent<NativePhotoGalleryViewProps>(
   'PhotoGalleryViewManager'
 );
+
+export const isNativeGalleryAvailable =
+  UIManager.getViewManagerConfig != null &&
+  UIManager.getViewManagerConfig('PhotoGalleryViewManager') != null;
 
 export function NativePhotoGalleryView(props: NativePhotoGalleryViewProps) {
   return <NativePhotoGalleryViewComponent {...props} />;
