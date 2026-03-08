@@ -163,26 +163,32 @@ export function ScanScreen() {
       await checkPartialScan();
       if (cancelled) return;
 
-      // ナビ・ネイティブが準備できるまで遅延（オンボーディング直後の「前回の続きから」クラッシュ対策）
+      // ナビ・ネイティブが準備できるまで遅延（オンボーディング直後・購入直後のクラッシュ対策）
       InteractionManager.runAfterInteractions(() => {
         if (cancelled || initialActionConsumed.current) return;
         const action = route.params?.initialAction;
         if (!action) return;
         initialActionConsumed.current = true;
-        try {
-          if (action === 'swipe') {
-            navigation.navigate('SwipeAllPhotos');
-          } else if (action === 'scan') {
-            const partial = useAppStore.getState().hasPartialScan;
-            if (partial) {
-              resumeScan();
-            } else {
-              startScan();
+        // 購入直後など IAP 完了処理が残っている場合に備え、1フレーム遅延してから実行
+        const runAction = () => {
+          if (cancelled) return;
+          try {
+            if (action === 'swipe') {
+              navigation.navigate('SwipeAllPhotos');
+            } else if (action === 'scan') {
+              const partial = useAppStore.getState().hasPartialScan;
+              const fn = partial ? resumeScan : startScan;
+              fn().catch((e: unknown) => {
+                if (__DEV__) console.warn('[ScanScreen] startScan/resumeScan failed', e);
+              });
             }
+          } catch (e) {
+            if (__DEV__) console.warn('[ScanScreen] initialAction failed', e);
           }
-        } catch (e) {
-          if (__DEV__) console.warn('[ScanScreen] initialAction failed', e);
-        }
+        };
+        requestAnimationFrame(() => {
+          runAction();
+        });
       });
     })();
     return () => {

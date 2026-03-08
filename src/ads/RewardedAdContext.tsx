@@ -117,10 +117,14 @@ export function RewardedAdProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (!adsSdkReady) return;
+    if (isAdFree) {
+      cleanup();
+      return;
+    }
     loadAttemptRef.current = 0;
     createAndLoad();
     return cleanup;
-  }, [adsSdkReady, createAndLoad, cleanup]);
+  }, [adsSdkReady, isAdFree, createAndLoad, cleanup]);
 
   const requestShowRewardedAd = useCallback((): Promise<boolean> => {
     if (isAdFree) return Promise.resolve(true);
