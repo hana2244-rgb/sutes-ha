@@ -1057,8 +1057,9 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     guard let url = cacheURL, FileManager.default.fileExists(atPath: url.path) else { return }
     do {
       let data = try Data(contentsOf: url)
+      // VNObservation を許可すると別サブクラス（VNSceneObservation 等）の decode でクラッシュするため、VNFeaturePrintObservation のみ許可
       let decoded = try NSKeyedUnarchiver.unarchivedObject(
-        ofClasses: [NSDictionary.self, NSString.self, VNObservation.self, VNFeaturePrintObservation.self],
+        ofClasses: [NSDictionary.self, NSString.self, NSData.self, VNFeaturePrintObservation.self],
         from: data
       ) as? [String: VNFeaturePrintObservation]
       if let cache = decoded {
@@ -1067,7 +1068,8 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         cacheLock.unlock()
       }
     } catch {
-      // キャッシュ破損時は無視してメモリキャッシュのみで続行
+      // キャッシュ破損・形式不一致時は削除して次回から再計算
+      try? FileManager.default.removeItem(at: url)
     }
   }
 
