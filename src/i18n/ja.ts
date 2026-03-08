@@ -156,6 +156,7 @@ const ja = {
     keepAllAndExit: 'すべて残してここまで',
     gallery: '一覧',
     galleryTitle: '写真一覧',
+    galleryLoading: '一覧を読み込み中...',
     galleryJumpHere: 'ここから再開',
   },
   swipeGroup: {

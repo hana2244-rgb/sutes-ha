@@ -156,6 +156,7 @@ const en = {
     keepAllAndExit: 'Keep all & finish here',
     gallery: 'Gallery',
     galleryTitle: 'All Photos',
+    galleryLoading: 'Loading gallery...',
     galleryJumpHere: 'Resume here',
   },
   swipeGroup: {

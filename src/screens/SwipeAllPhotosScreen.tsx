@@ -575,19 +575,26 @@ export function SwipeAllPhotosScreen() {
       return;
     }
 
-    // ネイティブ一覧: 全ページ読み込み後に assetIds を渡してからモーダルを開く
+    // ネイティブ一覧: 読み込み済み分をすぐ表示し、バックグラウンドで追加読み込みして一覧を伸ばす
+    setGalleryAssetIds(photosRef.current.map((p) => p.id));
+    setGalleryDeleteIds(Array.from(deleteIdsRef.current));
+    setGallerySkipIds(Array.from(skipIdsRef.current));
+    setGalleryVisible(true);
     (async () => {
-      while (photosRef.current.length < totalRef.current) {
-        if (loadingMoreRef.current) {
-          await new Promise((r) => setTimeout(r, 100));
-          continue;
+      try {
+        while (photosRef.current.length < totalRef.current) {
+          if (loadingMoreRef.current) {
+            await new Promise((r) => setTimeout(r, 100));
+            continue;
+          }
+          await loadPage(photosRef.current.length);
+          setGalleryAssetIds(photosRef.current.map((p) => p.id));
+          setGalleryDeleteIds(Array.from(deleteIdsRef.current));
+          setGallerySkipIds(Array.from(skipIdsRef.current));
         }
-        await loadPage(photosRef.current.length);
+      } catch (e) {
+        if (__DEV__) console.warn('[SwipeAll] gallery load failed', e);
       }
-      setGalleryAssetIds(photosRef.current.map((p) => p.id));
-      setGalleryDeleteIds(Array.from(deleteIdsRef.current));
-      setGallerySkipIds(Array.from(skipIdsRef.current));
-      setGalleryVisible(true);
     })();
   }, [isNative, loadPage]);
 
@@ -1005,7 +1012,12 @@ export function SwipeAllPhotosScreen() {
             <Text style={styles.headerTitle}>{t('swipe.galleryTitle')}</Text>
             <View style={styles.closeBtn} />
           </View>
-          {isNative && galleryAssetIds.length > 0 ? (
+          {isNative && galleryAssetIds.length === 0 ? (
+            <View style={[styles.galleryLoadingWrap, { paddingBottom: insets.bottom + 16 }]}>
+              <ActivityIndicator size="large" color={theme.colors.accent} />
+              <Text style={styles.galleryLoadingText}>{t('swipe.galleryLoading')}</Text>
+            </View>
+          ) : isNative && galleryAssetIds.length > 0 ? (
             <View style={{ flex: 1 }}>
               <NativePhotoGalleryView
                 style={{ flex: 1 }}
@@ -1397,6 +1409,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  galleryLoadingWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  galleryLoadingText: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
   },
   galleryThumb: {
     width: GALLERY_THUMB_SIZE,
