@@ -64,6 +64,7 @@ workflows:
 
       - name: Build IPA
         script: |
+          set -e
           cd "$CM_BUILD_DIR"
           WORKSPACE_PATH=$(find ios -maxdepth 1 -name "*.xcworkspace" -type d | head -1)
           if [ -z "$WORKSPACE_PATH" ]; then
@@ -73,6 +74,10 @@ workflows:
           fi
           SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
           echo "Using workspace: $WORKSPACE_PATH, scheme: $SCHEME_NAME"
+          echo "--- Xcode version ---"
+          xcodebuild -version
+          echo "--- SplashScreen.storyboard path ---"
+          find ios -name "SplashScreen.storyboard" | head -5 || echo "Not found"
           xcode-project build-ipa \
             --workspace "$WORKSPACE_PATH" \
             --scheme "$SCHEME_NAME"
