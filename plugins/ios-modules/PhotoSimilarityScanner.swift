@@ -14,14 +14,19 @@ import React
 class PhotoSimilarityScanner: RCTEventEmitter {
 
   private var scanQueue: OperationQueue!
-  private var isPaused = false
-  private var shouldCancel = false
   private var allAssets: [PHAsset] = []
   private var timeClusters: [[PHAsset]] = []
   private var foundGroups: [[String: Any]] = []
   private var scanProgress: [String: Any] = [:]
   private var featurePrintCache: [String: VNFeaturePrintObservation] = [:]
+  /// featurePrintCache を保護
   private let cacheLock = NSLock()
+  /// isPaused / shouldCancel を保護（複数スレッドからの同時アクセスによるデータレース防止）
+  private let stateLock = NSLock()
+  /// scanProgress を保護（scanExecutionQueue ↔ main/JS thread の同時アクセス防止）
+  private let progressLock = NSLock()
+  /// foundGroups / timeClusters を保護（scanExecutionQueue ↔ JS thread の同時アクセス防止）
+  private let groupsLock = NSLock()
   private var cacheURL: URL?
   private var progressFileURL: URL?
   private var foundGroupsFileURL: URL?
@@ -33,9 +38,20 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   private let scanExecutionQueue = DispatchQueue(label: "sutesho.scan.execution")
   /// iOS 写真アプリと同様の先読みキャッシュマネージャー
   private let cachingManager = PHCachingImageManager()
-  /// 現在プリキャッシュ中のアセット（stopCaching 用）
-  private var cachedAssets: [PHAsset] = []
-  private var cachedTargetSize: CGSize = .zero
+
+  /// isPaused: stateLock で保護した computed property
+  private var _isPaused = false
+  private var isPaused: Bool {
+    get { stateLock.lock(); defer { stateLock.unlock() }; return _isPaused }
+    set { stateLock.lock(); _isPaused = newValue; stateLock.unlock() }
+  }
+
+  /// shouldCancel: stateLock で保護した computed property
+  private var _shouldCancel = false
+  private var shouldCancel: Bool {
+    get { stateLock.lock(); defer { stateLock.unlock() }; return _shouldCancel }
+    set { stateLock.lock(); _shouldCancel = newValue; stateLock.unlock() }
+  }
 
   /// サムネイルキャッシュのバージョン。サイズや品質を変えたらインクリメントする
   private static let thumbCacheVersion = 2
@@ -112,10 +128,13 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     case .serious:
       scanQueue.maxConcurrentOperationCount = 2
     case .critical:
-      scanQueue.isSuspended = true
       isPaused = true
+      scanQueue.isSuspended = true
       sendEvent(name: "onScanPaused", body: nil)
-      if !scanProgress.isEmpty, let cur = scanProgress["current"] as? Int, let tot = scanProgress["total"] as? Int {
+      progressLock.lock()
+      let progress = scanProgress
+      progressLock.unlock()
+      if !progress.isEmpty, let cur = progress["current"] as? Int, let tot = progress["total"] as? Int {
         saveProgressFile(current: cur, total: tot, phase: "grouping")
       }
     default:
@@ -184,7 +203,9 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       self.thresholdLock.unlock()
       self.isPaused = false
       self.shouldCancel = false
+      self.groupsLock.lock()
       self.foundGroups = []
+      self.groupsLock.unlock()
       self.deleteProgressFile()
       self.deleteFoundGroupsFile()
       self.loadCache()
@@ -205,11 +226,14 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     shouldCancel = true
     scanQueue.cancelAllOperations()
     scanQueue.isSuspended = true
-    if !scanProgress.isEmpty, let cur = scanProgress["current"] as? Int, let tot = scanProgress["total"] as? Int {
+    progressLock.lock()
+    let progress = scanProgress
+    progressLock.unlock()
+    if !progress.isEmpty, let cur = progress["current"] as? Int, let tot = progress["total"] as? Int {
       saveProgressFile(current: cur, total: tot, phase: "grouping")
     }
     saveFoundGroupsFile()
-    sendEvent(name: "onScanPaused", body: scanProgress.isEmpty ? nil : scanProgress)
+    sendEvent(name: "onScanPaused", body: progress.isEmpty ? nil : progress)
     resolve(NSNull())
   }
 
@@ -242,7 +266,9 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       let assets = self.fetchAllImageAssetsOnMainThread()
       if let (resumeFrom, _) = self.loadProgressFromFile() {
         if let saved = self.loadFoundGroupsFile() {
+          self.groupsLock.lock()
           self.foundGroups = saved
+          self.groupsLock.unlock()
         }
         resolved = true
         DispatchQueue.main.async { resolve(NSNull()) }
@@ -253,12 +279,17 @@ class PhotoSimilarityScanner: RCTEventEmitter {
           self.deleteFoundGroupsFile()
           self.saveCache()
         } catch {
-          self.sendEvent(name: "onScanCompleted", body: ["totalGroups": self.foundGroups.count])
+          self.groupsLock.lock()
+          let count = self.foundGroups.count
+          self.groupsLock.unlock()
+          self.sendEvent(name: "onScanCompleted", body: ["totalGroups": count])
           self.deleteProgressFile()
           self.deleteFoundGroupsFile()
         }
       } else {
+        self.groupsLock.lock()
         self.foundGroups = []
+        self.groupsLock.unlock()
         resolved = true
         DispatchQueue.main.async { resolve(NSNull()) }
         do {
@@ -268,7 +299,10 @@ class PhotoSimilarityScanner: RCTEventEmitter {
           self.deleteFoundGroupsFile()
           self.saveCache()
         } catch {
-          self.sendEvent(name: "onScanCompleted", body: ["totalGroups": self.foundGroups.count])
+          self.groupsLock.lock()
+          let count = self.foundGroups.count
+          self.groupsLock.unlock()
+          self.sendEvent(name: "onScanCompleted", body: ["totalGroups": count])
           self.deleteProgressFile()
           self.deleteFoundGroupsFile()
         }
@@ -303,7 +337,10 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     }
 
     let clusters = clusterByTime(assets)
+    groupsLock.lock()
     timeClusters = clusters
+    groupsLock.unlock()
+
     if resumePoint == 0 {
       sendProgress(percent: 0, current: 0, total: total, phase: "clustering", phaseLabel: "時刻でグルーピング中...")
     } else if resumePoint > 0 && total > 0 {
@@ -332,7 +369,9 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       for group in groups {
         if group.count >= 2 {
           let groupDict = makeGroupDict(assets: group, threshold: currentThreshold)
+          groupsLock.lock()
           foundGroups.append(groupDict)
+          groupsLock.unlock()
           sendEvent(name: "onGroupFound", body: groupDict)
         }
       }
@@ -351,7 +390,10 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     if shouldCancel { return }
 
     sendProgress(percent: 100.0, current: total, total: total, phase: "grouping", phaseLabel: "完了")
-    sendEvent(name: "onScanCompleted", body: ["totalGroups": foundGroups.count])
+    groupsLock.lock()
+    let finalCount = foundGroups.count
+    groupsLock.unlock()
+    sendEvent(name: "onScanCompleted", body: ["totalGroups": finalCount])
     deleteProgressFile()
     deleteFoundGroupsFile()
     saveCache()
@@ -428,7 +470,8 @@ class PhotoSimilarityScanner: RCTEventEmitter {
 
     let options = PHImageRequestOptions()
     options.deliveryMode = .fastFormat
-    options.isNetworkAccessAllowed = true
+    // ネットワーク不許可: iCloud 同期写真で isSynchronous リクエストが無限ブロックするのを防ぐ
+    options.isNetworkAccessAllowed = false
     options.isSynchronous = true
     options.resizeMode = .fast
     var result: VNFeaturePrintObservation?
@@ -485,38 +528,53 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   }
 
   private func sendProgress(percent: Double, current: Int, total: Int, phase: String, phaseLabel: String) {
-    scanProgress = [
+    let progress: [String: Any] = [
       "percent": percent,
       "current": current,
       "total": total,
       "phase": phase,
       "phaseLabel": phaseLabel,
     ]
-    sendEvent(name: "onProgressUpdate", body: scanProgress)
+    progressLock.lock()
+    scanProgress = progress
+    progressLock.unlock()
+    sendEvent(name: "onProgressUpdate", body: progress)
   }
 
   // MARK: - Progress / Groups
 
   @objc func getScanProgress(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    resolve(scanProgress.isEmpty ? NSNull() : scanProgress)
+    progressLock.lock()
+    let progress = scanProgress
+    progressLock.unlock()
+    resolve(progress.isEmpty ? NSNull() : progress)
   }
 
   @objc func getFoundGroups(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    resolve(foundGroups)
+    groupsLock.lock()
+    let groups = foundGroups
+    groupsLock.unlock()
+    resolve(groups)
   }
 
   @objc func regroupWithThreshold(_ threshold: Double, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     thresholdLock.lock()
     currentThreshold = threshold
     thresholdLock.unlock()
+    // timeClusters のスナップショットをロック外で処理（findSimilarGroups は時間がかかる可能性があるため）
+    groupsLock.lock()
+    let clusters = timeClusters
+    groupsLock.unlock()
     var newGroups: [[String: Any]] = []
-    for cluster in timeClusters where cluster.count >= 2 {
+    for cluster in clusters where cluster.count >= 2 {
       let groups = findSimilarGroups(in: cluster, threshold: threshold)
       for group in groups where group.count >= 2 {
         newGroups.append(makeGroupDict(assets: group, threshold: threshold))
       }
     }
+    groupsLock.lock()
     foundGroups = newGroups
+    groupsLock.unlock()
     resolve(newGroups)
   }
 
@@ -741,11 +799,19 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       return
     }
 
-    // バースト写真の非代表アセットも取得できるよう includeAllBurstAssets を有効化
-    let fetchOptions = PHFetchOptions()
-    fetchOptions.includeAllBurstAssets = true
-    let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: fetchOptions)
-    guard let asset = fetchResult.firstObject else {
+    // PHFetchResult の fetch + firstObject はメインスレッドで実行（バックグラウンドでのクラッシュ対策）
+    var asset: PHAsset?
+    let fetchSem = DispatchSemaphore(value: 0)
+    DispatchQueue.main.async {
+      let fetchOptions = PHFetchOptions()
+      fetchOptions.includeAllBurstAssets = true
+      let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: fetchOptions)
+      asset = fetchResult.firstObject
+      fetchSem.signal()
+    }
+    fetchSem.wait()
+
+    guard let asset = asset else {
       print("[SuteSha] thumb: asset not found id=\(assetId.prefix(40))...")
       completion(nil)
       return
@@ -977,7 +1043,10 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   @objc func saveCurrentState(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     saveFoundGroupsFile()
     // 進捗ファイルも保存（完了状態なら total == total で保存）
-    if !scanProgress.isEmpty, let cur = scanProgress["current"] as? Int, let tot = scanProgress["total"] as? Int {
+    progressLock.lock()
+    let progress = scanProgress
+    progressLock.unlock()
+    if !progress.isEmpty, let cur = progress["current"] as? Int, let tot = progress["total"] as? Int {
       saveProgressFile(current: cur, total: tot, phase: "grouping")
     }
     resolve(NSNull())
@@ -1030,8 +1099,12 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   }
 
   private func saveFoundGroupsFile() {
-    guard let url = foundGroupsFileURL, !foundGroups.isEmpty else { return }
-    guard let data = try? JSONSerialization.data(withJSONObject: foundGroups) else { return }
+    // ロック外でファイル書き込みを行うためスナップショットを取る
+    groupsLock.lock()
+    let groups = foundGroups
+    groupsLock.unlock()
+    guard let url = foundGroupsFileURL, !groups.isEmpty else { return }
+    guard let data = try? JSONSerialization.data(withJSONObject: groups) else { return }
     try? data.write(to: url)
   }
 
