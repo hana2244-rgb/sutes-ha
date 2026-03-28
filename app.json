@@ -2,7 +2,7 @@
   "expo": {
     "name": "捨て写",
     "slug": "sutesho",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "locales": {
       "ja": "./locales/ios/ja.json",
@@ -20,7 +20,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.Akifumi.H.trashsnap",
-      "buildNumber": "32",
+      "buildNumber": "48",
       "deploymentTarget": "16.0",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "写真を端末内で解析し、似ている写真を見つけます。外部送信は一切行いません。",
