@@ -152,11 +152,18 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   }
 
   // RCTEventEmitter は bridge が nil のとき送信をスキップするため、送信可能かチェック
-  override func startObserving() {}
-  override func stopObserving() {}
+  private var hasListeners = false
+
+  override func startObserving() {
+    hasListeners = true
+  }
+
+  override func stopObserving() {
+    hasListeners = false
+  }
 
   private func sendEvent(name: String, body: Any?) {
-    guard bridge != nil else { return }
+    guard bridge != nil, hasListeners else { return }
     sendEvent(withName: name, body: body)
   }
 
