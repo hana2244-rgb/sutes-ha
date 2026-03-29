@@ -53,6 +53,8 @@ export function usePhotoScanner() {
             if (p) useAppStore.getState().setScanProgress(p);
           });
         }
+        // 一時停止後に再開位置状態を更新（スキャン完了後の正しい順序を保証）
+        checkPartialScan().catch(() => {});
       },
       onScanCompleted: (data) => {
         useAppStore.getState().setScanState('completed');
@@ -63,6 +65,8 @@ export function usePhotoScanner() {
           text: t('scanner.scanComplete'),
           subtext: t('scanner.groupsFound', { count: totalGroups }),
         });
+        // スキャン完了後に再開位置状態を更新
+        checkPartialScan().catch(() => {});
       },
       onThermalWarning: ({ level }) => {
         useAppStore.getState().setThermalLevel(level);

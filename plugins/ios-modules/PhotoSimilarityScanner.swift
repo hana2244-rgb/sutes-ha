@@ -318,6 +318,11 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       let options = PHFetchOptions()
       options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
       options.includeAllBurstAssets = true
+      // iOS 26 の spatial photo メタデータ初期化クラッシュを避けるため必要なプロパティのみ指定
+      options.propertyKeys = [
+        "localIdentifier", "creationDate", "pixelWidth", "pixelHeight",
+        "duration", "mediaType", "representsBurst", "burstIdentifier"
+      ]
       let fetchResult = PHAsset.fetchAssets(with: .image, options: options)
       fetchResult.enumerateObjects { asset, _, _ in result.append(asset) }
       sem.signal()
@@ -1004,6 +1009,11 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       let options = PHFetchOptions()
       options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
       options.includeAllBurstAssets = true
+      // iOS 26 の spatial photo メタデータ初期化クラッシュを避けるため必要なプロパティのみ指定
+      options.propertyKeys = [
+        "localIdentifier", "creationDate", "pixelWidth", "pixelHeight",
+        "duration", "mediaType", "representsBurst", "burstIdentifier"
+      ]
       let fetchResult = PHAsset.fetchAssets(with: .image, options: options)
       let total = fetchResult.count
       let start = min(offset, total)

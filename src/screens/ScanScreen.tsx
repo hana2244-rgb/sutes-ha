@@ -160,7 +160,11 @@ export function ScanScreen() {
       const count = await getPhotoCount();
       if (cancelled) return;
       setPhotoCount(count);
-      await checkPartialScan();
+      // スキャン実行中は checkPartialScan をスキップ（競合クラッシュ対策）
+      const currentState = useAppStore.getState().scanState;
+      if (currentState !== 'scanning') {
+        await checkPartialScan();
+      }
       if (cancelled) return;
 
       // ナビ・ネイティブが準備できるまで遅延（オンボーディング直後・購入直後のクラッシュ対策）
