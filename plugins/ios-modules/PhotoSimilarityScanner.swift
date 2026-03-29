@@ -53,6 +53,20 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     set { stateLock.lock(); _shouldCancel = newValue; stateLock.unlock() }
   }
 
+  /// スキャン世代カウンター（stateLock で保護）。古いブロックを早期終了させるために使用
+  private var _scanGeneration: Int = 0
+
+  private func nextScanGeneration() -> Int {
+    stateLock.lock(); defer { stateLock.unlock() }
+    _scanGeneration += 1
+    return _scanGeneration
+  }
+
+  private func isScanGenerationValid(_ gen: Int) -> Bool {
+    stateLock.lock(); defer { stateLock.unlock() }
+    return _scanGeneration == gen
+  }
+
   /// サムネイルキャッシュのバージョン。サイズや品質を変えたらインクリメントする
   private static let thumbCacheVersion = 2
 
@@ -188,6 +202,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
 
   @objc func startScan(_ threshold: Double, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     shouldCancel = true
+    let myGen = nextScanGeneration()
 
     scanExecutionQueue.async { [weak self] in
       guard let self = self else {
@@ -204,6 +219,12 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         if !resolved {
           DispatchQueue.main.async { reject("SCAN_ERROR", "Scan failed", nil) }
         }
+      }
+      // 新しいスキャン要求が来ていたら古いブロックを早期終了
+      guard self.isScanGenerationValid(myGen) else {
+        resolved = true
+        DispatchQueue.main.async { resolve(NSNull()) }
+        return
       }
       self.thresholdLock.lock()
       self.currentThreshold = threshold
@@ -246,6 +267,7 @@ class PhotoSimilarityScanner: RCTEventEmitter {
 
   @objc func resumeScan(_ threshold: Double, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     shouldCancel = true
+    let myGen = nextScanGeneration()
 
     scanExecutionQueue.async { [weak self] in
       guard let self = self else {
@@ -262,6 +284,12 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         if !resolved {
           DispatchQueue.main.async { reject("SCAN_ERROR", "Resume failed", nil) }
         }
+      }
+      // 新しいスキャン要求が来ていたら古いブロックを早期終了
+      guard self.isScanGenerationValid(myGen) else {
+        resolved = true
+        DispatchQueue.main.async { resolve(NSNull()) }
+        return
       }
       self.thresholdLock.lock()
       self.currentThreshold = threshold
