@@ -15,6 +15,10 @@ class PhotoSimilarityScanner: RCTEventEmitter {
 
   private var scanQueue: OperationQueue!
   private var allAssets: [PHAsset] = []
+  /// fetchAllImageAssetsOnMainThread のキャッシュ（2回目のPhotosアクセスによるiOS 26クラッシュ防止）
+  private var cachedAllAssets: [PHAsset] = []
+  private var cachedAllAssetsAt: Date?
+  private let assetCacheLock = NSLock()
   private var timeClusters: [[PHAsset]] = []
   private var foundGroups: [[String: Any]] = []
   private var scanProgress: [String: Any] = [:]
@@ -346,7 +350,18 @@ class PhotoSimilarityScanner: RCTEventEmitter {
   }
 
   /// メインスレッドで fetch + enumerate を行う（バックグラウンドでの PHBatchFetchingArray クラッシュ対策）
+  /// 30秒以内に取得済みのキャッシュがある場合はPhotosアクセスをスキップする
+  /// （連続スキャン再開時のiOS 26 Photos二重アクセスクラッシュ防止）
   private func fetchAllImageAssetsOnMainThread() -> [PHAsset] {
+    assetCacheLock.lock()
+    let cached = cachedAllAssets
+    let cachedAt = cachedAllAssetsAt
+    assetCacheLock.unlock()
+
+    if !cached.isEmpty, let at = cachedAt, Date().timeIntervalSince(at) < 30 {
+      return cached
+    }
+
     var result: [PHAsset] = []
     let sem = DispatchSemaphore(value: 0)
     DispatchQueue.main.async {
@@ -358,6 +373,12 @@ class PhotoSimilarityScanner: RCTEventEmitter {
       sem.signal()
     }
     sem.wait()
+
+    assetCacheLock.lock()
+    cachedAllAssets = result
+    cachedAllAssetsAt = Date()
+    assetCacheLock.unlock()
+
     return result
   }
 
@@ -633,6 +654,11 @@ class PhotoSimilarityScanner: RCTEventEmitter {
         PHAssetChangeRequest.deleteAssets(toDelete as NSArray)
       }) { ok, error in
       if ok {
+        // 削除後はアセットキャッシュを無効化
+        self.assetCacheLock.lock()
+        self.cachedAllAssets = []
+        self.cachedAllAssetsAt = nil
+        self.assetCacheLock.unlock()
         resolve([
           "deletedCount": toDelete.count,
           "freedBytes": NSNumber(value: totalBytes),
@@ -1091,6 +1117,10 @@ class PhotoSimilarityScanner: RCTEventEmitter {
     cacheLock.lock()
     featurePrintCache.removeAll()
     cacheLock.unlock()
+    assetCacheLock.lock()
+    cachedAllAssets = []
+    cachedAllAssetsAt = nil
+    assetCacheLock.unlock()
     if let url = cacheURL { try? FileManager.default.removeItem(at: url) }
     if let dir = thumbDir { try? FileManager.default.removeItem(at: dir) }
     deleteProgressFile()
